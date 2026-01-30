@@ -1,0 +1,11 @@
+{
+    "nama_koperasi": "Koperasi GAS Sejahtera",
+    "alamat": "Jl. Merdeka No. 123, Jakarta",
+    "no_telp": "021-1234567",
+    "email": "admin@koperasi.com",
+    "logo": "logo.png",
+    "deskripsi": "Koperasi terpercaya untuk kesejahteraan bersama",
+    "nama_admin": "Budi Santoso",
+    "username_admin": "budi",
+    "password_admin_hash": "$2y$10$2Bu3xQoTgmDmypCdED.Tc.hVFTNfBf74JMGltjHroGRFIp\/FqNz3a"
+}

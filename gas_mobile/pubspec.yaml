@@ -1,0 +1,64 @@
+name: tabungan
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  get: ^4.6.6
+  intl: ^0.19.0
+  fluttertoast: ^8.2.4
+  shared_preferences: ^2.2.3
+  flutter_dotenv: ^5.1.0
+  image_picker: ^1.0.7
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^3.5.5
+  http: ^1.6.0
+  # removed deprecated packages: qr_code_tools (no longer used)
+  # qr images are generated server-side and rendered with qr_flutter
+
+  url_launcher: ^6.2.6
+  curved_navigation_bar: ^1.0.3
+  permission_handler: ^12.0.1
+  path_provider: ^2.0.12
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# ⚠️ Konfigurasi ICON APLIKASI
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/logo.png
+    - assets/logo_gusti.png
+    - assets/logo gas warna putih.png
+    - assets/logo gas hitam.png
+    - assets/slide1.png
+    - assets/slide2.png
+    - assets/slide3.png
+    - assets/slide4.png
+    - assets/Donate.png
+    - assets/Request Money.png
+    - assets/Exchange.png
+    - assets/icons/facebook.png
+    - assets/icons/instagram.png
+    - assets/icons/linkedin.png

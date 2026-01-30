@@ -1,0 +1,42 @@
+[
+    {
+        "id": 8,
+        "id_pengguna": 95,
+        "id_jenis_tabungan": 1,
+        "jumlah": 10000,
+        "keterangan": "Cairkan tabungan (via API)",
+        "created_at": "2025-12-23 09:51:52"
+    },
+    {
+        "id": 7,
+        "id_pengguna": 95,
+        "id_jenis_tabungan": 1,
+        "jumlah": 10000,
+        "keterangan": "Cairkan tabungan (via API)",
+        "created_at": "2025-12-23 09:51:27"
+    },
+    {
+        "id": 3,
+        "id_pengguna": 95,
+        "id_jenis_tabungan": 7,
+        "jumlah": 10000,
+        "keterangan": "Cairkan tabungan (via API)",
+        "created_at": "2025-12-22 04:58:34"
+    },
+    {
+        "id": 2,
+        "id_pengguna": 95,
+        "id_jenis_tabungan": 7,
+        "jumlah": 10000,
+        "keterangan": "Cairkan tabungan (via API)",
+        "created_at": "2025-12-22 04:51:09"
+    },
+    {
+        "id": 1,
+        "id_pengguna": 95,
+        "id_jenis_tabungan": 7,
+        "jumlah": 10000,
+        "keterangan": "Cairkan tabungan (via API)",
+        "created_at": "2025-12-22 04:35:51"
+    }
+]

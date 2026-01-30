@@ -1,0 +1,18 @@
+{
+    "ts": "2025-12-14T05:28:09+01:00",
+    "user": {
+        "id": "95",
+        "no_hp": "081990608817",
+        "kata_sandi": "$2y$10$tCVfc9s38f27bzA1md1ILuHE2KXAHS0rPT67u2USq8vP.klwXTt2G",
+        "nama_lengkap": "albar syahrurrachman",
+        "foto_profil": "95_1765429994.jpg",
+        "alamat_domisili": "ciamis",
+        "tanggal_lahir": "2007-11-07",
+        "setuju_syarat": "1",
+        "status_akun": "TERVERIFIKASI",
+        "saldo": "9950000",
+        "created_at": "2025-12-11 05:14:36",
+        "updated_at": "2025-12-11 05:14:36",
+        "pin": "$2y$10$v5suwqmf24EaCWa3r.7ITelDZVt4E5yyqR/.ouX/tNdaBMmcVUuve"
+    }
+}

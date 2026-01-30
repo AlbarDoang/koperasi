@@ -1,0 +1,8 @@
+﻿POST http://172.168.80.236/gas/gas_web/api/pinjaman/submit.php with -1-byte payload
+received 238-byte response of content type application/json; charset=utf-8
+
+status message                     id row                                                 
+------ -------                     -- ---                                                 
+  True Pengajuan pinjaman berhasil 12 @{id=12; id_pengguna=97; jumlah_pinjaman=3333.00;...
+
+

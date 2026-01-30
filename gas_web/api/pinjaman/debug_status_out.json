@@ -1,0 +1,138 @@
+﻿{
+    "status":  true,
+    "database":  "tabungan",
+    "pending_count":  11,
+    "pending_rows":  [
+                         {
+                             "id":  "11",
+                             "id_pengguna":  "97",
+                             "jumlah":  "2222.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "test automation after fixes",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 14:43:02"
+                         },
+                         {
+                             "id":  "10",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1231231.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "rererererererrer",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 14:06:53"
+                         },
+                         {
+                             "id":  "9",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1231231.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "rerererererer",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 14:06:40"
+                         },
+                         {
+                             "id":  "8",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1231231.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "rerere",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 14:06:30"
+                         },
+                         {
+                             "id":  "7",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1231231.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "rerere",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 14:05:34"
+                         },
+                         {
+                             "id":  "6",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1231231.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "eerere",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 13:55:33"
+                         },
+                         {
+                             "id":  "5",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1000000.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "erere",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 13:46:57"
+                         },
+                         {
+                             "id":  "4",
+                             "id_pengguna":  "97",
+                             "jumlah":  "10000000.00",
+                             "tenor":  "3",
+                             "tujuan_penggunaan":  "rere",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 13:33:48"
+                         },
+                         {
+                             "id":  "3",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1000000.00",
+                             "tenor":  "6",
+                             "tujuan_penggunaan":  "pepe",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 13:31:51"
+                         },
+                         {
+                             "id":  "2",
+                             "id_pengguna":  "97",
+                             "jumlah":  "1000000.00",
+                             "tenor":  "6",
+                             "tujuan_penggunaan":  "pepe",
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 13:31:47"
+                         },
+                         {
+                             "id":  "1",
+                             "id_pengguna":  "1",
+                             "jumlah":  "1000000.00",
+                             "tenor":  null,
+                             "tujuan_penggunaan":  null,
+                             "status":  "pending",
+                             "created_at":  "2025-12-28 10:44:44"
+                         }
+                     ],
+    "debug_log_tail":  [
+                           "2025-12-28 08:06:53 REQ headers: {\"Host\":\"172.168.80.236\",\"Connection\":\"keep-alive\",\"Accept\":\"*\\/*\",\"Access-Control-Request-Method\":\"POST\",\"Access-Control-Request-Headers\":\"content-type\",\"Origin\":\"http:\\/\\/localhost:51474\",\"User-Agent\":\"Mozilla\\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\\/537.36 (KHTML, like Gecko) Chrome\\/143.0.0.0 Safari\\/537.36\",\"Sec-Fetch-Mode\":\"cors\",\"Referer\":\"http:\\/\\/localhost:51474\\/\",\"Accept-Encoding\":\"gzip, deflate\",\"Accept-Language\":\"en-US,en;q=0.9\"} body: ",
+                           "2025-12-28 08:06:53 REQ headers: {\"Host\":\"172.168.80.236\",\"Connection\":\"keep-alive\",\"Content-Length\":\"93\",\"User-Agent\":\"Mozilla\\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\\/537.36 (KHTML, like Gecko) Chrome\\/143.0.0.0 Safari\\/537.36\",\"Content-Type\":\"application\\/json\",\"Accept\":\"*\\/*\",\"Origin\":\"http:\\/\\/localhost:51474\",\"Referer\":\"http:\\/\\/localhost:51474\\/\",\"Accept-Encoding\":\"gzip, deflate\",\"Accept-Language\":\"en-US,en;q=0.9\"} body: {\"id_pengguna\":97,\"jumlah_pinjaman\":1231231,\"tenor\":3,\"tujuan_penggunaan\":\"rererererererrer\"}",
+                           "[2025-12-28 08:06:53] INPUT: array (",
+                           "  \u0027id_pengguna\u0027 =\u003e 97,",
+                           "  \u0027jumlah_pinjaman\u0027 =\u003e 1231231,",
+                           "  \u0027tenor\u0027 =\u003e 3,",
+                           "  \u0027tujuan_penggunaan\u0027 =\u003e \u0027rererererererrer\u0027,",
+                           ")",
+                           "[2025-12-28 08:06:53] DB CON: \\mysqli::__set_state(array(",
+                           "))",
+                           "2025-12-28 08:06:53 EXCEPTION: [mysqli_sql_exception] Unknown column \u0027jumlah\u0027 in \u0027field list\u0027",
+                           "#0 C:\\xampp\\htdocs\\gas\\gas_web\\api\\pinjaman\\submit.php(181): mysqli_query(Object(mysqli), \u0027SELECT id, id_p...\u0027)",
+                           "#1 {main}",
+                           "2025-12-28 08:34:07 PING from 172.168.80.236 origin=none method=GET",
+                           "2025-12-28 08:34:24 PING from 172.168.80.236 origin=none method=GET",
+                           "2025-12-28 08:43:02 REQ headers: {\"Origin\":\"http:\\/\\/localhost:51474\",\"User-Agent\":\"Mozilla\\/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell\\/5.1.19041.6456\",\"Content-Type\":\"application\\/json\",\"Host\":\"127.0.0.1\",\"Content-Length\":\"135\"} body: {\r",
+                           "    \"id_pengguna\":  97,\r",
+                           "    \"tenor\":  3,\r",
+                           "    \"jumlah_pinjaman\":  2222,\r",
+                           "    \"tujuan_penggunaan\":  \"test automation after fixes\"\r",
+                           "}",
+                           "[2025-12-28 08:43:02] INPUT: array (",
+                           "  \u0027id_pengguna\u0027 =\u003e 97,",
+                           "  \u0027tenor\u0027 =\u003e 3,",
+                           "  \u0027jumlah_pinjaman\u0027 =\u003e 2222,",
+                           "  \u0027tujuan_penggunaan\u0027 =\u003e \u0027test automation after fixes\u0027,",
+                           ")",
+                           "[2025-12-28 08:43:02] DB CON: \\mysqli::__set_state(array(",
+                           "))",
+                           "2025-12-28 08:43:02 inserted id=11 row={\"id\":\"11\",\"id_pengguna\":\"97\",\"jumlah_pinjaman\":\"2222.00\",\"tenor\":\"3\",\"tujuan_penggunaan\":\"test automation after fixes\",\"status\":\"pending\",\"created_at\":\"2025-12-28 14:43:02\"}"
+                       ]
+}

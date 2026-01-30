@@ -1,0 +1,29 @@
+﻿OPTIONS http://127.0.0.1/gas/gas_web/api/pinjaman/submit.php with 0-byte payload
+received 164-byte response of content type text/html; charset=UTF-8
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : <br />
+                    <b>Parse error</b>:  syntax error, unexpected token &quot;catch&quot; 
+                    in <b>C:\xampp\htdocs\gas\gas_web\api\pinjaman\submit.php</b> on line 
+                    <b>245</b><br />
+                    
+RawContent        : HTTP/1.1 200 OK
+                    Keep-Alive: timeout=5, max=100
+                    Connection: Keep-Alive
+                    Content-Length: 164
+                    Content-Type: text/html; charset=UTF-8
+                    Date: Sun, 28 Dec 2025 07:39:00 GMT
+                    Server: Apache/2.4.58 (Win64)...
+Forms             : {}
+Headers           : {[Keep-Alive, timeout=5, max=100], [Connection, Keep-Alive], 
+                    [Content-Length, 164], [Content-Type, text/html; charset=UTF-8]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : mshtml.HTMLDocumentClass
+RawContentLength  : 164
+
+
+

@@ -1,0 +1,155 @@
+2026-01-03T10:51:54+01:00 APPROVE id=96 no_hp=6287822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-04T03:54:52+01:00 APPROVE id=104 no_hp=628370306214 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-04T04:16:22+01:00 APPROVE id=96 no_hp=6287822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-05T04:15:45+01:00 APPROVE WA_ERROR id=96 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-05T04:15:45+01:00 APPROVE id=96 no_hp=087822451601 wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-05T05:39:56+01:00 REJECT INSERT ERR id=96 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-05T05:39:56+01:00 REJECT WA_ERROR id=96 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-05T05:39:56+01:00 REJECT id=96 no_hp=087822451601 reason=SASDAS wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-05T05:42:24+01:00 APPROVE WA_ERROR id=96 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-05T05:42:24+01:00 APPROVE id=96 no_hp=087822451601 wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-05T09:01:42+01:00 APPROVE WA_ERROR id=96 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-05T09:01:42+01:00 APPROVE id=96 no_hp=087822451601 wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-06T16:44:35+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-06T16:44:35+01:00 REJECT WA_ERROR id=1 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-06T16:44:35+01:00 REJECT id=1 no_hp=087822451601 reason=sdfssd wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-06T17:04:14+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-06T17:04:14+01:00 REJECT WA_ERROR id=1 no_hp=087822451601 err=Call to undefined function normalizePhoneNumber()
+2026-01-06T17:04:14+01:00 REJECT id=1 no_hp=087822451601 reason=dljsnjxk wa_success=0 message=Call to undefined function normalizePhoneNumber()
+2026-01-06T17:25:03+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-06T17:25:04+01:00 REJECT id=1 no_hp=087822451601 reason=akakakk wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-06T17:30:12+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-06T18:08:14+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-06T18:46:30+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T02:20:12+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T02:20:14+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T02:20:42+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T02:20:44+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T02:45:14+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T02:45:16+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T04:57:36+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T04:57:38+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T05:00:10+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T05:00:12+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T05:31:49+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T05:31:51+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T05:33:37+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T05:33:39+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-07T05:40:13+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-07T05:40:15+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-08T17:47:26+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-08T17:47:27+01:00 REJECT id=1 no_hp=087822451601 reason=foto ktp gak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-08T18:21:12+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-08T18:21:14+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-09T19:06:36+01:00 APPROVE id=8 no_hp=08272981648 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:06:38+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-09T19:06:40+01:00 REJECT INSERT ERR id=10 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:06:40+01:00 REJECT id=10 no_hp=08628795588 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:08:18+01:00 APPROVE id=11 no_hp=08266438150 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:08:20+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-09T19:08:21+01:00 REJECT INSERT ERR id=13 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:08:23+01:00 REJECT id=13 no_hp=08977670966 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:09:16+01:00 APPROVE id=14 no_hp=08937451851 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:09:18+01:00 NOTIFY payload={"event":"user-approved","totalMembers":3} resp=
+2026-01-09T19:09:20+01:00 REJECT INSERT ERR id=16 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:09:21+01:00 REJECT id=16 no_hp=08447738451 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:23:17+01:00 APPROVE id=19 no_hp=08901308212 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:23:19+01:00 NOTIFY payload={"event":"user-approved","totalMembers":4} resp=
+2026-01-09T19:23:20+01:00 REJECT INSERT ERR id=21 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:23:20+01:00 REJECT id=21 no_hp=08780515784 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:24:43+01:00 APPROVE id=22 no_hp=08828543288 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:24:45+01:00 NOTIFY payload={"event":"user-approved","totalMembers":5} resp=
+2026-01-09T19:24:48+01:00 REJECT INSERT ERR id=24 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:24:48+01:00 REJECT id=24 no_hp=08729781636 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:42:10+01:00 APPROVE id=25 no_hp=08892804343 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:42:12+01:00 NOTIFY payload={"event":"user-approved","totalMembers":6} resp=
+2026-01-09T19:42:15+01:00 REJECT INSERT ERR id=27 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:42:15+01:00 REJECT id=27 no_hp=08809126044 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:42:54+01:00 APPROVE id=28 no_hp=08726979026 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T19:42:56+01:00 NOTIFY payload={"event":"user-approved","totalMembers":7} resp=
+2026-01-09T19:42:58+01:00 REJECT INSERT ERR id=30 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T19:42:58+01:00 REJECT id=30 no_hp=08249126305 reason=Dokumen tidak jelas wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T20:00:56+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-09T20:00:57+01:00 REJECT id=1 no_hp=087822451601 reason=mdljss wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T20:04:41+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T20:04:43+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-09T20:59:02+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T20:59:04+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-09T21:07:10+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-09T21:07:12+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-10T13:54:03+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-10T13:54:06+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-10T13:58:37+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-10T13:58:39+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-10T14:14:39+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-10T14:14:41+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-10T16:39:21+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-10T16:39:23+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-12T02:25:34+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-12T02:25:36+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-12T02:57:15+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-12T02:57:17+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-12T05:26:28+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-12T05:26:30+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-13T20:13:07+01:00 APPROVE id=1 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-13T20:13:09+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-19T11:52:12+01:00 REJECT INSERT ERR id=1 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-19T11:52:12+01:00 REJECT id=1 no_hp=081990608817 reason=weeeeeeeeeeeeeeeeee wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-19T12:00:15+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-19T12:00:17+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-19T13:00:55+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-19T13:00:57+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-20T18:42:14+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-20T18:42:16+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-20T18:42:17+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-20T18:42:19+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-20T19:48:05+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-20T19:48:07+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-21T02:18:02+01:00 APPROVE id=1 no_hp=085157610059 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T02:18:04+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-21T02:48:40+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T02:48:42+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-21T03:13:06+01:00 REJECT INSERT ERR id=2 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-21T03:13:06+01:00 REJECT id=2 no_hp=081990608817 reason=alalal wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T03:15:47+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T03:15:49+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-21T03:35:14+01:00 APPROVE id=2 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T03:35:16+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-21T04:26:06+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T04:26:08+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-21T04:59:56+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T04:59:58+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-21T08:58:23+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-21T08:58:25+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T03:39:45+01:00 REJECT INSERT ERR id=2 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-01-22T03:39:46+01:00 REJECT id=2 no_hp=083875748726 reason=werw wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T03:39:57+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T03:39:59+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T04:10:55+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T04:10:57+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T04:47:56+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T04:47:58+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T05:18:39+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T05:18:41+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T05:42:40+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T05:42:42+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T08:02:41+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T08:02:43+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T08:42:05+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T08:42:07+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T09:14:52+01:00 APPROVE id=1 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T09:14:54+01:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-01-22T10:44:52+01:00 APPROVE id=2 no_hp=085938560895 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-22T10:44:54+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-23T02:59:16+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-23T02:59:18+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-23T08:51:24+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-23T08:51:26+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-24T18:42:23+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-24T18:42:25+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-24T19:41:29+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-24T19:41:31+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-24T20:11:29+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-24T20:11:31+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-01-26T02:40:24+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-01-26T02:40:26+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=

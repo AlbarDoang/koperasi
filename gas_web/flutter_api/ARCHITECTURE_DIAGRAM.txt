@@ -1,0 +1,420 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║          APPROVAL & REJECTION SYSTEM - ARCHITECTURE & FLOW DIAGRAM           ║
+║                      Gas Tabungan Digital (Updated: 2026-01-25)              ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            SYSTEM ARCHITECTURE                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                                   ┌─────────────┐
+                                   │   MOBILE    │
+                                   │    APP      │
+                                   └──────┬──────┘
+                                          │
+                        ┌─────────────────┼─────────────────┐
+                        │                 │                 │
+                   ┌────▼────┐      ┌─────▼──────┐    ┌────▼────┐
+                   │ REQUEST  │      │  GET USER  │    │ NOTIFIK │
+                   │ APPROVAL │      │  BALANCE   │    │ATION    │
+                   └────┬────┘      └────────────┘    └────┬────┘
+                        │                                  │
+                        └──────────────┬───────────────────┘
+                                       │
+                        ┌──────────────▼───────────────┐
+                        │  /approve_penarikan.php      │
+                        │  (Main API Endpoint)         │
+                        └──────────────┬───────────────┘
+                                       │
+        ┌──────────────────────────────┼──────────────────────────────┐
+        │                              │                              │
+        ▼                              ▼                              ▼
+    ┌────────────┐          ┌──────────────────┐          ┌────────────┐
+    │ APPROVE    │          │   TRANSACTION    │          │  REJECT    │
+    │ FLOW       │          │   MANAGEMENT     │          │  FLOW      │
+    │            │          │                  │          │            │
+    │ 1. Deduct  │          │ - BEGIN          │          │ 1. UPDATE  │
+    │    Savings │          │ - LOCK ROW       │          │    STATUS  │
+    │            │          │ - COMMIT/ROLLB.  │          │            │
+    │ 2. UPDATE  │          │                  │          │ 2. CREATE  │
+    │    Status  │          │ ┌─────────────┐  │          │    NOTIF   │
+    │            │          │ │ AUDIT LOG   │  │          │            │
+    │ 3. CREDIT  │          │ │ - saldo_    │  │          │ NO BALANCE │
+    │    Wallet  │          │ │   audit.log │  │          │ CHANGE!    │
+    │            │          │ │ - notif_    │  │          │            │
+    │ 4. NOTIFY  │          │ │   filter.log│  │          └────────────┘
+    │    User    │          │ └─────────────┘  │
+    └────────────┘          └──────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         APPROVE FLOW - DETAILED                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                    User Requests Withdrawal
+                            ▼
+                    tabungan_keluar (pending)
+                            ▼
+                    Admin Reviews Request
+                            ▼
+                    ┌──────────────────┐
+                    │  approve_        │
+                    │  penarikan.php   │
+                    │  (action=approve)│
+                    └────────┬─────────┘
+                             ▼
+                    ┌─────────────────────────────────┐
+                    │  START TRANSACTION              │
+                    │  $connect->begin_transaction()  │
+                    └────────┬────────────────────────┘
+                             ▼
+                    ┌─────────────────────────────────┐
+                    │  SELECT...FOR UPDATE            │
+                    │  Lock tabungan_keluar row       │
+                    │  Prevent race condition         │
+                    └────────┬────────────────────────┘
+                             ▼
+        ┌────────────────────────────────────────────┐
+        │  withdrawal_deduct_saved_balance()         │
+        │  (from ledger_helpers.php)                 │
+        │                                            │
+        │  1. Verify tabungan_masuk table exists     │
+        │  2. SUM(jumlah) WHERE status='berhasil'   │
+        │  3. Check balance >= amount                │
+        │  4. Deduct from oldest rows (FIFO)        │
+        │  5. Return new_balance or FALSE            │
+        │  6. Log to saldo_audit.log                │
+        └────────┬───────────────────────────────────┘
+                 ▼
+        ┌─────────────────────────────────────────┐
+        │  UPDATE tabungan_keluar                  │
+        │  SET status='approved'                   │
+        │  WHERE id=? AND status='pending'         │
+        │  (Only updates if still pending)         │
+        └────────┬────────────────────────────────┘
+                 ▼
+        ┌─────────────────────────────────────────┐
+        │  withdrawal_credit_wallet()             │
+        │  (from ledger_helpers.php)              │
+        │                                         │
+        │  1. UPDATE pengguna.saldo = saldo+amt   │
+        │  2. Fetch new saldo                     │
+        │  3. Log to saldo_audit.log              │
+        │  4. Return new_saldo or FALSE           │
+        └────────┬────────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────────┐
+        │  create_withdrawal_approved_notification │
+        │  (from notif_helper.php)                 │
+        │                                          │
+        │  Title: "Pencairan Disetujui"            │
+        │  Message: "Pencairan sebesar Rp XXXXX    │
+        │           dari {jenis} telah disetujui   │
+        │           dan dikreditkan. Saldo: Rp..." │
+        │  Type: "withdrawal_approved"             │
+        │  Data: JSON {...}                        │
+        │                                          │
+        │  safe_create_notification() ensures:     │
+        │  - No duplicates (2-min window)          │
+        │  - Prepared statement                    │
+        │  - Returns notif_id or FALSE             │
+        │  - Logs to notification_filter.log       │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  COMMIT TRANSACTION                   │
+        │  $connect->commit()                   │
+        │                                       │
+        │  ✓ All changes written to DB          │
+        │  ✓ Transaction locked (no reads)      │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  JSON RESPONSE: success=true          │
+        │  {                                    │
+        │    "success": true,                   │
+        │    "message": "Penarikan berhasil...", │
+        │    "data": {                          │
+        │      "jumlah": 100000,                │
+        │      "saldo_baru": 450000,            │
+        │      "saldo_dashboard": 250000,       │
+        │      "status": "approved"             │
+        │    }                                  │
+        │  }                                    │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  USER NOTIFICATION SENT               │
+        │                                       │
+        │  "Pencairan Disetujui"                │
+        │  "Pencairan sebesar Rp 100.000        │
+        │   dari Tabungan Qurban telah          │
+        │   disetujui dan dikreditkan ke        │
+        │   saldo bebas Anda. Saldo bebas       │
+        │   saat ini: Rp 250.000."              │
+        │                                       │
+        │  Wallet Balance Updated: Rp 250.000   │
+        └────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         REJECT FLOW - DETAILED                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                    User Requests Withdrawal
+                            ▼
+                    tabungan_keluar (pending)
+                            ▼
+                    Admin Reviews Request
+                            ▼
+                    ┌──────────────────┐
+                    │  approve_        │
+                    │  penarikan.php   │
+                    │  (action=reject) │
+                    └────────┬─────────┘
+                             ▼
+                    ┌─────────────────────────────────┐
+                    │  START TRANSACTION              │
+                    │  $connect->begin_transaction()  │
+                    └────────┬────────────────────────┘
+                             ▼
+                    ┌─────────────────────────────────┐
+                    │  SELECT...FOR UPDATE            │
+                    │  Lock tabungan_keluar row       │
+                    └────────┬────────────────────────┘
+                             ▼
+        ┌──────────────────────────────────────────┐
+        │  UPDATE tabungan_keluar                  │
+        │  SET status='rejected'                   │
+        │      rejected_reason=?                   │
+        │  WHERE id=? AND status='pending'         │
+        │                                          │
+        │  ✓ Prepared statement with bind_param    │
+        │  ✓ Only updates if still pending         │
+        │  ✗ NO changes to tabungan_masuk!        │
+        │  ✗ NO changes to pengguna.saldo!        │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────────┐
+        │  create_withdrawal_rejected_notification │
+        │  (from notif_helper.php)                 │
+        │                                          │
+        │  Title: "Pencairan Ditolak"              │
+        │  Message: "Pencairan sebesar Rp XXXXX    │
+        │           dari {jenis} ditolak.          │
+        │           Alasan: {reason}"              │
+        │  Type: "withdrawal_rejected"             │
+        │  Data: JSON with reason                  │
+        │                                          │
+        │  safe_create_notification() ensures:     │
+        │  - No duplicates                         │
+        │  - Prepared statement                    │
+        │  - Returns notif_id or FALSE             │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  COMMIT TRANSACTION                   │
+        │  $connect->commit()                   │
+        │                                       │
+        │  ✓ Status updated                     │
+        │  ✓ Notification created               │
+        │  ✓ User balance UNCHANGED             │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  JSON RESPONSE: success=true          │
+        │  {                                    │
+        │    "success": true,                   │
+        │    "message": "Penarikan ditolak",    │
+        │    "data": {                          │
+        │      "jumlah": 100000,                │
+        │      "saldo_baru": 550000,            │
+        │      "saldo_dashboard": 150000,       │
+        │      "status": "rejected"             │
+        │    }                                  │
+        │  }                                    │
+        └────────┬───────────────────────────────┘
+                 ▼
+        ┌──────────────────────────────────────┐
+        │  USER NOTIFICATION SENT               │
+        │                                       │
+        │  "Pencairan Ditolak"                  │
+        │  "Pencairan sebesar Rp 100.000        │
+        │   dari Tabungan Qurban ditolak.       │
+        │   Alasan: Data tidak lengkap"         │
+        │                                       │
+        │  ⚠️  Balance UNCHANGED                 │
+        │  ✓  User can try again later          │
+        └────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                       ERROR HANDLING FLOW                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+        Any Error During Processing
+                    ▼
+        ┌──────────────────────────────┐
+        │  try {                        │
+        │    ...all operations...       │
+        │    $connect->commit();        │
+        │  } catch (Exception $e) {    │
+        │    $connect->rollback();      │
+        │  }                            │
+        └──────────────┬────────────────┘
+                       ▼
+        ┌──────────────────────────────────┐
+        │  TRANSACTION ROLLED BACK          │
+        │                                   │
+        │  ✓ All changes undone             │
+        │  ✓ Balance unchanged              │
+        │  ✓ Notification NOT created       │
+        │  ✓ Status still 'pending'         │
+        └──────────────┬────────────────────┘
+                       ▼
+        ┌──────────────────────────────────┐
+        │  JSON RESPONSE: success=false     │
+        │  {                                │
+        │    "success": false,              │
+        │    "message": "Error details..."  │
+        │  }                                │
+        └──────────────┬────────────────────┘
+                       ▼
+        ┌──────────────────────────────────┐
+        │  LOGGED TO AUDIT TRAIL            │
+        │                                   │
+        │  saldo_audit.log:                 │
+        │  "APPROVE_PENARIKAN_FAILED        │
+        │   user={id} err={error_msg}"      │
+        │                                   │
+        │  User can try withdrawal again    │
+        └────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    DATABASE CHANGES SUMMARY                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+APPROVE ACTION:
+├─ tabungan_keluar
+│  └─ status: pending → approved
+│  └─ updated_at: NOW()
+├─ tabungan_masuk
+│  └─ jumlah: decreased (deducted)
+├─ pengguna
+│  └─ saldo: increased (credited)
+└─ notifikasi
+   └─ NEW row (type=withdrawal_approved)
+
+REJECT ACTION:
+├─ tabungan_keluar
+│  └─ status: pending → rejected
+│  └─ rejected_reason: stored
+│  └─ updated_at: NOW()
+├─ tabungan_masuk
+│  └─ NO CHANGES ✓
+├─ pengguna
+│  └─ NO CHANGES ✓
+└─ notifikasi
+   └─ NEW row (type=withdrawal_rejected)
+
+ERROR:
+├─ tabungan_keluar
+│  └─ NO CHANGES (rollback)
+├─ tabungan_masuk
+│  └─ NO CHANGES (rollback)
+├─ pengguna
+│  └─ NO CHANGES (rollback)
+└─ notifikasi
+   └─ NO CHANGES (rollback)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    FILE DEPENDENCY MAP                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+approve_penarikan.php (Main Controller)
+    ├─ connection.php (Database connection)
+    ├─ notif_helper.php
+    │  ├─ create_withdrawal_approved_notification()
+    │  ├─ create_withdrawal_rejected_notification()
+    │  └─ safe_create_notification() [deduplication logic]
+    │
+    └─ ledger_helpers.php
+       ├─ withdrawal_deduct_saved_balance() [balance deduction]
+       ├─ withdrawal_credit_wallet() [wallet credit]
+       └─ create_withdrawal_transaction_record() [audit]
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    DOCUMENTATION MAP                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+START HERE
+    ↓
+DOCUMENTATION_INDEX.md (Navigation Guide)
+    ├─→ QUICK_REFERENCE_APPROVAL.md (5-10 min read)
+    │   └─ Request/Response Examples
+    │   └─ Error Cases
+    │   └─ Mobile Integration
+    │
+    ├─→ APPROVAL_IMPLEMENTATION_GUIDE.md (20-30 min read)
+    │   └─ Complete Technical Details
+    │   └─ Database Schema
+    │   └─ Testing Instructions
+    │   └─ Deployment Checklist
+    │
+    ├─→ APPROVAL_VERIFICATION_REPORT.md (15-20 min read)
+    │   └─ Requirement Verification ✅
+    │   └─ Code Analysis
+    │   └─ Quality Metrics
+    │   └─ Deployment Approval
+    │
+    ├─→ IMPLEMENTATION_STATUS_REPORT.md (10 min read)
+    │   └─ What Was Existing vs New
+    │   └─ Status Summary
+    │   └─ Next Steps
+    │
+    └─→ test_approve_reject_flow.php (Automated Testing)
+        └─ Run: php test_approve_reject_flow.php
+        └─ Validates: All flows work correctly
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              KEY FEATURES
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ TRANSACTION SAFETY
+   └─ ACID compliance with BEGIN/COMMIT/ROLLBACK
+
+✅ BALANCE PROTECTION
+   └─ Validate sufficient funds before deduction
+   └─ Atomic FIFO deduction from multiple rows
+
+✅ RACE CONDITION PREVENTION
+   └─ Row-level locking with SELECT...FOR UPDATE
+
+✅ NOTIFICATION DEDUPLICATION
+   └─ smart_create_notification() with 2-min window
+
+✅ AUDIT LOGGING
+   └─ saldo_audit.log - balance operations
+   └─ notification_filter.log - notification events
+
+✅ SECURITY
+   └─ Prepared statements for all queries
+   └─ Parameter binding (no SQL injection)
+   └─ Input validation
+
+✅ ERROR HANDLING
+   └─ Try-catch with proper rollback
+   └─ Meaningful error messages
+   └─ Audit trail for failures
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Created: 2026-01-25
+Status: ✅ Production Ready

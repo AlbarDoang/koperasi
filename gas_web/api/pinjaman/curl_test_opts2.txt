@@ -1,0 +1,21 @@
+﻿OPTIONS http://127.0.0.1/gas/gas_web/api/pinjaman/submit.php with 0-byte payload
+received -1-byte response of content type 
+
+
+StatusCode        : 204
+StatusDescription : No Content
+Content           : {}
+RawContent        : HTTP/1.1 204 No Content
+                    Access-Control-Allow-Origin: *
+                    Access-Control-Allow-Methods: GET, POST, OPTIONS
+                    Access-Control-Allow-Headers: Content-Type, Authorization, 
+                    X-Requested-With, Accept
+                    Access-C...
+Headers           : {[Access-Control-Allow-Origin, *], [Access-Control-Allow-Methods, 
+                    GET, POST, OPTIONS], [Access-Control-Allow-Headers, Content-Type, 
+                    Authorization, X-Requested-With, Accept], 
+                    [Access-Control-Allow-Credentials, true]...}
+RawContentLength  : 0
+
+
+

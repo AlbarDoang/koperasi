@@ -1,0 +1,321 @@
+.bi {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Remove default browser margins so header is flush to top */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * Sidebar
+ */
+
+@media (min-width: 768px) {
+  .sidebar .offcanvas-lg {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 48px;
+  }
+  .navbar-search {
+    display: block;
+  }
+}
+
+.sidebar .nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.sidebar .nav-link.active {
+  color: #ff4c00;
+}
+
+.sidebar-heading {
+  font-size: 0.75rem;
+}
+
+/*
+ * Navbar
+ */
+
+.navbar-brand {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  background-color: transparent; /* remove dark strip */
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.06);
+}
+
+.navbar .form-control {
+  padding: 0.75rem 1rem;
+}
+
+/* Brand / header tweaks */
+:root {
+  --orange: #ff6b00;
+  --muted-text: #6b7280;
+  --border: #e6e9ee;
+  --muted-bg: #f7f8fa;
+  --header-bg: #2b2740;
+}
+.navbar {
+  background: var(--header-bg) !important;
+  align-items: flex-start;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+}
+.navbar .navbar-brand img {
+  height: 56px;
+}
+.navbar .navbar-brand {
+  background: transparent !important;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+/* header contrast */
+.navbar .navbar-brand .text-white,
+.navbar .navbar-brand span {
+  color: #fff !important;
+}
+.navbar .nav-link,
+.navbar .navbar-text {
+  color: rgba(255, 255, 255, 0.95);
+}
+.navbar .dropdown-item {
+  color: #1f2937 !important;
+}
+.navbar .btn-outline-secondary {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.navbar .dropdown-menu {
+  background: #ffffff;
+  color: #1f2937;
+}
+
+/* Layout */
+body {
+  background: var(--muted-bg);
+}
+
+/* Sidebar styling improvements */
+.sidebar {
+  background: #fff;
+  border-right: 1px solid var(--border);
+  min-height: calc(100vh - 64px);
+  padding-top: 18px;
+}
+.sidebar .offcanvas-body {
+  padding: 0;
+}
+.sidebar .nav-link {
+  color: var(--muted-text);
+  padding: 12px 18px;
+  margin: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.18s ease;
+  position: relative;
+}
+.sidebar .nav-link i {
+  font-size: 18px;
+  margin-right: 10px;
+  color: #9aa4b2;
+}
+.sidebar .nav-link:hover {
+  background: rgba(255, 107, 0, 0.06);
+  color: var(--orange);
+  transform: translateX(3px);
+}
+
+/* thin orange indicator on the left for active item */
+.sidebar .nav-link.active {
+  background: #fff;
+  color: var(--orange) !important;
+  box-shadow: none;
+}
+.sidebar .nav-link.active::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  background: linear-gradient(180deg, var(--orange), #ff8533);
+  border-radius: 4px;
+}
+.sidebar .nav-link.active .fe,
+.sidebar .nav-link.active .zmdi,
+.sidebar .nav-link.active i {
+  color: var(--orange) !important;
+}
+
+/* Make the dashboard button look like a pill while keeping the indicator */
+.sidebar .nav-link.d-flex.align-items-center.gap-2.active {
+  background: linear-gradient(90deg, var(--orange), #ff8533);
+  color: #fff !important;
+}
+.sidebar .nav-link.d-flex.align-items-center.gap-2.active::before {
+  display: none;
+}
+
+/* Cards + stat visuals */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(21, 24, 27, 0.05);
+}
+.stat-card .h3,
+.stat-card h3 {
+  color: #222;
+}
+
+/* Navbar small helpers */
+.navbar .btn-outline-secondary {
+  color: var(--muted-text);
+  border-color: var(--border);
+}
+
+/* scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--orange);
+  border-radius: 8px;
+}
+
+@media (max-width: 991px) {
+  .sidebar {
+    position: relative;
+    min-height: auto;
+  }
+  .navbar .navbar-brand span {
+    display: none;
+  }
+}
+
+/* Left orange panel enhancements for login/hero areas */
+.left-panel,
+.auth-left,
+.login-left,
+.hero-left {
+  --lg1: #ff7a00;
+  --lg2: #ff6b00;
+  background: linear-gradient(180deg, var(--lg1), var(--lg2));
+  position: relative;
+  overflow: visible;
+}
+
+/* Create a decorative upward-pointing corner on the top-left */
+.left-panel::before,
+.auth-left::before,
+.login-left::before,
+.hero-left::before {
+  content: "";
+  position: absolute;
+  top: -44px;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 0 solid transparent;
+  border-right: 140px solid transparent;
+  border-bottom: 44px solid var(--lg2);
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.08));
+  transform-origin: left top;
+}
+
+/* Fallback small triangle for very small screens */
+@media (max-width: 480px) {
+  .left-panel::before,
+  .auth-left::before,
+  .login-left::before,
+  .hero-left::before {
+    border-right: 90px solid transparent;
+    border-bottom: 30px solid var(--lg2);
+    top: -30px;
+  }
+}
+
+/* Logo float animation + shadow */
+.left-panel .brand-logo,
+.auth-left .brand-logo,
+.login-left .brand-logo,
+.hero-left .brand-logo,
+.left-panel .logo,
+.auth-left .logo,
+.login-left .logo,
+.hero-left .logo {
+  display: block;
+  margin: 36px auto 20px auto;
+  text-align: center;
+  will-change: transform;
+  animation: gas-logo-float 4s ease-in-out infinite;
+}
+
+.left-panel .brand-logo img,
+.auth-left .brand-logo img,
+.login-left .brand-logo img,
+.hero-left .brand-logo img,
+.left-panel .logo img,
+.auth-left .logo img,
+.login-left .logo img,
+.hero-left .logo img {
+  max-width: 72%;
+  height: auto;
+  display: inline-block;
+  border-radius: 10px;
+  box-shadow: 0 18px 30px rgba(17, 24, 39, 0.16),
+    0 6px 12px rgba(255, 107, 0, 0.08) inset;
+}
+
+@keyframes gas-logo-float {
+  0% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+  25% {
+    transform: translateY(-6px) rotate(0.2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(0.6deg);
+  }
+  75% {
+    transform: translateY(-6px) rotate(0.2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+}
+
+/* gentle glow under the logo using pseudo-element */
+.left-panel .brand-logo::after,
+.auth-left .brand-logo::after,
+.login-left .brand-logo::after,
+.hero-left .brand-logo::after,
+.left-panel .logo::after,
+.auth-left .logo::after,
+.login-left .logo::after,
+.hero-left .logo::after {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 14px;
+  margin: 10px auto 0 auto;
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 138, 64, 0.22),
+    rgba(255, 138, 64, 0) 60%
+  );
+  filter: blur(8px);
+  border-radius: 50%;
+}
