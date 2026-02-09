@@ -129,7 +129,7 @@ class _CreateState extends State<UpdateFoto> {
   }
 
   XFile? _imageFile;
-  final String uploadUrl = '${Api.baseUrl}/api/update_foto';
+  final String uploadUrl = '${Api.baseUrl}/update_foto.php'; // Fixed endpoint path to prevent 404
   final ImagePicker _picker = ImagePicker();
 
   // ignore: strict_top_level_inference

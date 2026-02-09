@@ -12,14 +12,14 @@ $con = getConnection();
 // Check what's in database for this user
 $sql = "SELECT 
     id_transaksi, 
-    id_anggota,
+    id_pengguna,
     jenis_transaksi,
     jumlah,
     status,
     tanggal,
     keterangan
 FROM transaksi 
-WHERE id_anggota = ? 
+WHERE id_pengguna = ? 
 ORDER BY tanggal DESC 
 LIMIT 20";
 
@@ -40,3 +40,4 @@ echo json_encode([
     'transactions' => $data
 ]);
 ?>
+

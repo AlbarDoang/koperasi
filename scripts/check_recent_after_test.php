@@ -32,7 +32,7 @@ $stmt2->execute(); $r2 = $stmt2->get_result();
 while ($row = $r2->fetch_assoc()) {
     // try to heuristically match this user
     $matches = false;
-    foreach (['id_tabungan','id_anggota','id'] as $c) {
+    foreach (['id_tabungan','id_pengguna','id'] as $c) {
         if (isset($row[$c]) && intval($row[$c]) === $uid) { $matches = true; break; }
     }
     if (!$matches) {

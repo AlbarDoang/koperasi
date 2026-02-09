@@ -1,19 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Development configuration: Allow cleartext HTTP traffic -->
-    <!-- ⚠️ This is ONLY for local network development (192.168.x.x) -->
-    <!-- For production with HTTPS, change trust-anchors to use system certificates -->
+    <!-- Production/Development configuration: HTTPS with ngrok -->
+    <!-- Updated to use ngrok for development: https://tetrapodic-riotous-rosario.ngrok-free.dev -->
     
-    <!-- Allow cleartext traffic to specific IPs (development only) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <!-- Local network - development machine -->
-        <domain includeSubdomains="true">192.168.1.27</domain>
-        <domain includeSubdomains="true">10.0.0.0/8</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-    </domain-config>
-    
-    <!-- Default config: deny cleartext traffic for all other domains -->
+    <!-- Default config: accept HTTPS with system certificates (ngrok included) -->
     <default-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

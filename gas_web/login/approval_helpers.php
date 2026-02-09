@@ -124,7 +124,7 @@ if (!function_exists('approval_get_schema_for')) {
         $columns['member'] = $pickColumn([
             ['column' => 'id_siswa', 'key' => 'id_siswa'],
             ['column' => 'id_pengguna', 'key' => 'id_pengguna'],
-            ['column' => 'id_anggota', 'key' => 'id_anggota'],
+            ['column' => 'id_pengguna', 'key' => 'id_pengguna'],
             ['column' => 'id_tabungan', 'key' => 'id_tabungan'],
             ['column' => 'siswa_id', 'key' => 'id_siswa'],
             ['column' => 'id_user', 'key' => 'id_user'],
@@ -153,7 +153,7 @@ $columns['reject_reason'] = $pickColumn(['keterangan','reject_reason', 'catatan_
         $memberTable = dashboard_find_table($con, ['pengguna', 'anggota']);
         $memberColumns = [
             'id_pengguna' => $memberTable ? dashboard_pick_column($con, $memberTable, ['id_pengguna', 'id']) : null,
-            'id_anggota' => $memberTable ? dashboard_pick_column($con, $memberTable, ['id_anggota', 'id']) : null,
+            'id_pengguna' => $memberTable ? dashboard_pick_column($con, $memberTable, ['id_pengguna', 'id']) : null,
             'tabungan' => $memberTable ? dashboard_pick_column($con, $memberTable, ['id_tabungan', 'kode_tabungan']) : null,
             'nis' => $memberTable ? dashboard_pick_column($con, $memberTable, ['nis', 'no_induk', 'username']) : null,
             'name' => $memberTable ? dashboard_pick_column($con, $memberTable, ['nama', 'nama_lengkap', 'full_name', 'name']) : null,
@@ -228,7 +228,7 @@ if (!function_exists('approval_seek_member')) {
             $searchOrder[] = $pendingColumn;
         }
 
-        foreach (['id_pengguna', 'id_anggota', 'tabungan', 'nis'] as $key) {
+        foreach (['id_pengguna', 'id_pengguna', 'tabungan', 'nis'] as $key) {
             $columnName = $schema['member_columns'][$key] ?? null;
             if ($columnName && !in_array($columnName, $searchOrder, true)) {
                 $searchOrder[] = $columnName;
@@ -551,8 +551,8 @@ if (!function_exists('approval_record_credit')) {
         $tabunganTarget = $findTable('tabungan');
         if ($tabunganTarget) {
             $data = [];
-            if ($hasColumnIn('tabungan', 'id_anggota', $tabunganTarget['schema']) && $memberColumns['id_anggota'] && isset($memberData[$memberColumns['id_anggota']])) {
-                $data['id_anggota'] = $memberData[$memberColumns['id_anggota']];
+            if ($hasColumnIn('tabungan', 'id_pengguna', $tabunganTarget['schema']) && $memberColumns['id_pengguna'] && isset($memberData[$memberColumns['id_pengguna']])) {
+                $data['id_pengguna'] = $memberData[$memberColumns['id_pengguna']];
             } elseif ($hasColumnIn('tabungan', 'id_siswa', $tabunganTarget['schema']) && $memberColumns['id_siswa'] && isset($memberData[$memberColumns['id_siswa']])) {
                 $data['id_siswa'] = $memberData[$memberColumns['id_siswa']];
             } elseif ($hasColumnIn('tabungan', 'id_tabungan', $tabunganTarget['schema']) && $memberColumns['tabungan'] && isset($memberData[$memberColumns['tabungan']])) {
@@ -665,7 +665,7 @@ if (!function_exists('approval_apply_action')) {
                     try {
                         // Determine a sensible user id from member context
                         $notif_user_id = null;
-                        foreach (['id_pengguna','id','id_user','id_anggota'] as $k) {
+                        foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) {
                             if (isset($memberContext['data'][$k])) { $notif_user_id = (int)$memberContext['data'][$k]; break; }
                         }
 
@@ -683,7 +683,7 @@ if (!function_exists('approval_apply_action')) {
                                 'keterangan' => 'Pinjaman disetujui oleh admin',
                             ];
                             if (!empty($notif_user_id)) {
-                                $txPayload['id_anggota'] = $notif_user_id;
+                                $txPayload['id_pengguna'] = $notif_user_id;
                                 $txPayload['id_pengguna'] = $notif_user_id;
                             }
                             @record_transaction($con, $txPayload);
@@ -727,7 +727,7 @@ if (!function_exists('approval_apply_action')) {
                 // This ensures that Riwayat Transaksi shows the transaction after approval
                 try {
                     $notif_user_id = null;
-                    foreach (['id_pengguna','id','id_user','id_anggota'] as $k) {
+                    foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) {
                         if (isset($memberContext['data'][$k])) { $notif_user_id = (int)$memberContext['data'][$k]; break; }
                     }
                     
@@ -739,7 +739,7 @@ if (!function_exists('approval_apply_action')) {
                         $search_keterangan = '%tabungan_masuk ' . intval($pendingRow['id']) . '%';
                         $keterangan_approved = 'Setoran tabungan Anda telah disetujui. Saldo otomatis akan masuk ke rekening sesuai jenis tabungan yang dipilih.';
                         $update_stmt = $con->prepare(
-                            "UPDATE transaksi SET status = 'approved', keterangan = ? WHERE id_anggota = ? AND keterangan LIKE ?"
+                            "UPDATE transaksi SET status = 'approved', keterangan = ? WHERE id_pengguna = ? AND keterangan LIKE ?"
                         );
                         if ($update_stmt) {
                             $update_stmt->bind_param('sis', $keterangan_approved, $notif_user_id, $search_keterangan);
@@ -758,7 +758,7 @@ if (!function_exists('approval_apply_action')) {
                 // Create notification and transaksi record for approval if helpers available
                 try {
                     $notif_user_id = null;
-                    foreach (['id_pengguna','id','id_user','id_anggota'] as $k) {
+                    foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) {
                         if (isset($memberContext['data'][$k])) { $notif_user_id = (int)$memberContext['data'][$k]; break; }
                     }
 
@@ -776,7 +776,7 @@ if (!function_exists('approval_apply_action')) {
                             'keterangan' => 'Transaksi disetujui oleh admin',
                         ];
                         if (!empty($notif_user_id)) {
-                            $txPayload['id_anggota'] = $notif_user_id;
+                            $txPayload['id_pengguna'] = $notif_user_id;
                             $txPayload['id_pengguna'] = $notif_user_id;
                         }
                         @record_transaction($con, $txPayload);
@@ -804,7 +804,7 @@ if (!function_exists('approval_apply_action')) {
                     $memberContext = approval_seek_member($con, $schema, $pendingRow['member_value']);
                     $notif_user_id = null;
                     if ($memberContext && isset($memberContext['data']) && is_array($memberContext['data'])) {
-                        foreach (['id_pengguna','id','id_user','id_anggota'] as $k) {
+                        foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) {
                             if (isset($memberContext['data'][$k])) { $notif_user_id = (int)$memberContext['data'][$k]; break; }
                         }
                     }
@@ -817,7 +817,7 @@ if (!function_exists('approval_apply_action')) {
                         $search_keterangan = '%tabungan_masuk ' . intval($pendingRow['id']) . '%';
                         $keterangan_rejected = 'Setoran tabungan Anda ditolak. Silakan hubungi admin untuk informasi lebih lanjut atau mengecek kemungkinan kesalahan.';
                         $update_stmt = $con->prepare(
-                            "UPDATE transaksi SET status = 'rejected', keterangan = ? WHERE id_anggota = ? AND keterangan LIKE ?"
+                            "UPDATE transaksi SET status = 'rejected', keterangan = ? WHERE id_pengguna = ? AND keterangan LIKE ?"
                         );
                         if ($update_stmt) {
                             $update_stmt->bind_param('sis', $keterangan_rejected, $notif_user_id, $search_keterangan);
@@ -834,7 +834,7 @@ if (!function_exists('approval_apply_action')) {
                     $memberContext = approval_seek_member($con, $schema, $pendingRow['member_value']);
                     $notif_user_id = null;
                     if ($memberContext && isset($memberContext['data']) && is_array($memberContext['data'])) {
-                        foreach (['id_pengguna','id','id_user','id_anggota'] as $k) {
+                        foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) {
                             if (isset($memberContext['data'][$k])) { $notif_user_id = (int)$memberContext['data'][$k]; break; }
                         }
                     }
@@ -861,3 +861,4 @@ if (!function_exists('approval_apply_action')) {
         return ['success' => false, 'message' => 'Aksi tidak dikenal.'];
     }
 }
+

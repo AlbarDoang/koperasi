@@ -4,14 +4,55 @@
  * File ini menggunakan koneksi database terpusat dari config/database.php
  */
 
+// Set timezone ke Indonesia (UTC+7) - CRITICAL untuk waktu transaksi yang konsisten
+if (!ini_get('date.timezone')) {
+    date_default_timezone_set('Asia/Jakarta');
+}
+
 // Include centralized database configuration
 require_once dirname(__DIR__) . '/config/database.php';
 
 // Variabel $connect, $con, dan $koneksi sudah tersedia dari database.php
 
-// Ensure PHP warnings/errors are not emitted as HTML that would break JSON APIs.
+// Setup error handler for debugging
+if (!empty($GLOBALS['FLUTTER_API_DEBUG_MODE'])) {
+    // Custom error handler to show errors instead of silencing them
+    set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        $errorLevel = '';
+        switch($errno) {
+            case E_ERROR: $errorLevel = 'ERROR'; break;
+            case E_WARNING: $errorLevel = 'WARNING'; break;
+            case E_PARSE: $errorLevel = 'PARSE'; break;
+            case E_NOTICE: $errorLevel = 'NOTICE'; break;
+            case E_CORE_ERROR: $errorLevel = 'CORE_ERROR'; break;
+            case E_CORE_WARNING: $errorLevel = 'CORE_WARNING'; break;
+            case E_COMPILE_ERROR: $errorLevel = 'COMPILE_ERROR'; break;
+            case E_COMPILE_WARNING: $errorLevel = 'COMPILE_WARNING'; break;
+            case E_USER_ERROR: $errorLevel = 'USER_ERROR'; break;
+            case E_USER_WARNING: $errorLevel = 'USER_WARNING'; break;
+            case E_USER_NOTICE: $errorLevel = 'USER_NOTICE'; break;
+            case E_STRICT: $errorLevel = 'STRICT'; break;
+            case E_RECOVERABLE_ERROR: $errorLevel = 'RECOVERABLE_ERROR'; break;
+            case E_DEPRECATED: $errorLevel = 'DEPRECATED'; break;
+            case E_USER_DEPRECATED: $errorLevel = 'USER_DEPRECATED'; break;
+            default: $errorLevel = 'UNKNOWN('.$errno.')'; break;
+        }
+        
+        @error_log("[connection.php] PHP {$errorLevel}: {$errstr} in {$errfile}:{$errline}");
+        
+        // Return false to let PHP handle it internally too
+        return false;
+    });
+}
 // Buffer any unexpected output and log it for debugging.
-ini_set('display_errors', '0');
+// BUT: If FLUTTER_API_DEBUG_MODE is true, show errors for debugging
+
+// Check if debug mode is enabled BEFORE setting display_errors
+$FLUTTER_API_DEBUG_ENABLED = !empty($GLOBALS['FLUTTER_API_DEBUG_MODE']);
+
+if (!$FLUTTER_API_DEBUG_ENABLED) {
+    ini_set('display_errors', '0');
+}
 if (!function_exists('flutter_api_setup_output_buffer')) {
     function flutter_api_setup_output_buffer() {
         if (ob_get_level() === 0) ob_start();
@@ -24,6 +65,9 @@ if (!function_exists('flutter_api_setup_output_buffer')) {
             $script = $_SERVER['SCRIPT_FILENAME'] ?? ($_SERVER['SCRIPT_NAME'] ?? 'unknown');
             $uri = $_SERVER['REQUEST_URI'] ?? '';
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+            
+            // Check if debug mode is enabled
+            $debugMode = !empty($GLOBALS['FLUTTER_API_DEBUG_MODE']);
 
             // Truncate buffer for log to avoid huge lines
             $bufForLog = mb_substr(trim($buf), 0, 2000);
@@ -37,6 +81,14 @@ if (!function_exists('flutter_api_setup_output_buffer')) {
 
             if (trim($buf) !== '') {
                 @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [connection.php] Unexpected output from {$script} {$uri} {$ip}: " . $bufForLog . "\n", FILE_APPEND);
+
+                // In DEBUG MODE, always show the error output
+                if ($debugMode) {
+                    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [connection.php] DEBUG MODE ON - echoing buffered output instead of fallback for {$script} {$uri} {$ip}\n", FILE_APPEND);
+                    $GLOBALS['FLUTTER_API_JSON_OUTPUT'] = true;
+                    echo $buf;
+                    return;
+                }
 
                 // Remove potential leading BOM (UTF-8 or U+FEFF) which can make JSON invalid
                 $bufStripped = preg_replace('/^\xEF\xBB\xBF/', '', $buf);

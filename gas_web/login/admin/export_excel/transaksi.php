@@ -50,7 +50,7 @@ $headerStyle = [
 $sheet->getStyle('A4:H4')->applyFromArray($headerStyle);
 
 // Data
-$query = mysqli_query($con, "SELECT t.*, s.nama, s.kelas FROM transaksi t LEFT JOIN pengguna s ON t.id_anggota = s.id ORDER BY t.id_transaksi DESC");
+$query = mysqli_query($con, "SELECT t.*, s.nama, s.kelas FROM transaksi t LEFT JOIN pengguna s ON t.id_pengguna = s.id ORDER BY t.id_transaksi DESC");
 $row = 5;
 $no = 1;
 
@@ -87,3 +87,4 @@ $writer = new Xlsx($spreadsheet);
 $writer->save('php://output');
 exit();
 ?>
+

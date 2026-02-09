@@ -1,7 +1,7 @@
-<?php
+﻿<?php
 // Test: ensure processing/waiting/verification notifications for non-loan types are excluded
 $options = getopt('', ['base::', 'db-name::']);
-$base = rtrim($options['base'] ?? 'http://192.168.1.8/gas/gas_web', '/');
+$base = rtrim($options['base'] ?? 'http://192.168.43.151/gas/gas_web', '/');
 $dbName = $options['db-name'] ?? 'tabungan';
 
 $mysqli = new mysqli('localhost', 'root', '', $dbName);
@@ -68,3 +68,4 @@ $mysqli->query("DELETE FROM notifikasi WHERE id = " . intval($nid));
 $mysqli->query("DELETE FROM pengguna WHERE id = " . intval($uid));
 
 exit($ret);
+

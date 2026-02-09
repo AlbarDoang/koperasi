@@ -17,7 +17,7 @@ include 'connection.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validasi input
-    $required = ['id_anggota', 'nominal', 'metode'];
+    $required = ['id_pengguna', 'nominal', 'metode'];
     foreach ($required as $field) {
         if (empty($_POST[$field])) {
             echo json_encode([
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    $id_anggota = $connect->real_escape_string($_POST['id_anggota']);
+    $id_pengguna = $connect->real_escape_string($_POST['id_pengguna']);
     $nominal = floatval($_POST['nominal']);
     $metode = $connect->real_escape_string($_POST['metode']);
     $nomor_tujuan = isset($_POST['nomor_tujuan']) ? $connect->real_escape_string($_POST['nomor_tujuan']) : '';
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Cek apakah user exist
-    $check = $connect->query("SELECT id_anggota, nama FROM pengguna WHERE id_anggota='$id_anggota'");
+    $check = $connect->query("SELECT id_pengguna, nama FROM pengguna WHERE id_pengguna='$id_pengguna'");
     if ($check->num_rows == 0) {
         echo json_encode([
             "success" => false,
@@ -57,9 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         // Insert ke pending_transactions
         $sql = "INSERT INTO pending_transactions (
-                    id_anggota, jenis_transaksi, jumlah, metode_pembayaran, bukti_pembayaran
+                    id_pengguna, jenis_transaksi, jumlah, metode_pembayaran, bukti_pembayaran
                 ) VALUES (
-                    '$id_anggota', 'setoran', $nominal, '$metode', '$bukti_transfer'
+                    '$id_pengguna', 'setoran', $nominal, '$metode', '$bukti_transfer'
                 )";
         
         if ($connect->query($sql)) {
@@ -91,3 +91,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "message" => "Method not allowed"
     ]);
 }
+

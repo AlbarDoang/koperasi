@@ -72,12 +72,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           final filtered = server
               .where((n) {
                 final t = (n['type'] ?? '').toString();
-                // Accept legacy 'tabungan' plus 'transaksi', 'topup' and 'pinjaman' (including pinjaman_kredit)
+                // Accept legacy 'tabungan' plus 'transaksi', 'topup', 'mulai_nabung', 'pinjaman' (including pinjaman_kredit),
+                // and withdrawal-related types ('withdrawal_pending', 'withdrawal_approved', 'withdrawal_rejected')
                 if (!(t == 'transaksi' ||
                     t == 'topup' ||
                     t == 'tabungan' ||
+                    t == 'mulai_nabung' ||
                     t == 'pinjaman' ||
-                    t == 'pinjaman_kredit'))
+                    t == 'pinjaman_kredit' ||
+                    t == 'withdrawal_pending' ||
+                    t == 'withdrawal_approved' ||
+                    t == 'withdrawal_rejected'))
                   return false;
                 // Exclude generic processing/waiting/verifikasi texts for non-loan notifications
                 try {
@@ -185,10 +190,11 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       final filteredLocal = decoded.cast<Map<String, dynamic>>().where((n) {
         final t = (n['type'] ?? '').toString();
 
-        // Accept transaksi, topup, legacy 'tabungan', and pinjaman (treated as transaction-like)
+        // Accept transaksi, topup, legacy 'tabungan', mulai_nabung and pinjaman (treated as transaction-like)
         if (!(t == 'transaksi' ||
             t == 'topup' ||
             t == 'tabungan' ||
+            t == 'mulai_nabung' ||
             t == 'pinjaman' ||
             t == 'pinjaman_kredit')) {
           return false;
@@ -391,18 +397,24 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     try {
       if (mulaiId == null) return null;
 
-      // Use Api.baseUrl which is already configured with correct IP (192.168.1.8)
-      final url = '${Api.baseUrl}/get_riwayat_transaksi.php';
+      // Get user ID from preferences
+      final user = await EventPref.getUser();
+      if (user == null || (user.id ?? '').isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[NotifikasiPage] ✗ Cannot fetch transaction: user not found or has no ID');
+        }
+        return null;
+      }
+      
+      final userId = user.id ?? '';
 
       if (kDebugMode) {
-        debugPrint('[NotifikasiPage] Fetching complete transaction from: $url with mulaiId=$mulaiId');
+        debugPrint('[NotifikasiPage] Fetching complete transaction: userId=$userId, mulaiId=$mulaiId');
       }
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer ${_getToken()}',
-        },
+      final response = await http.post(
+        Uri.parse('${Api.baseUrl}/get_riwayat_transaksi.php'),
+        body: {'id_pengguna': userId},
       ).timeout(const Duration(seconds: 15));
 
       if (kDebugMode) {
@@ -412,25 +424,29 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
         if (kDebugMode) {
-          debugPrint('[NotifikasiPage] API Response: status=${body['status']}, data count=${body['data'] is List ? (body['data'] as List).length : 0}');
+          debugPrint('[NotifikasiPage] API Response: success=${body['success']}, data count=${body['data'] is List ? (body['data'] as List).length : 0}');
         }
 
-        if (body['status'] == 'SUCCESS' && body['data'] is List) {
+        if ((body['success'] == true || body['status'] == 'SUCCESS') && body['data'] is List) {
           final transactions = (body['data'] as List).cast<Map<String, dynamic>>();
           
           if (kDebugMode) {
             debugPrint('[NotifikasiPage] Searching through ${transactions.length} transactions for match...');
           }
 
-          // Find matching transaction by id_mulai_nabung
+          // Find matching transaction by id_mulai_nabung or id_transaksi
           for (final tx in transactions) {
             final txMulaiId = tx['id_mulai_nabung'];
+            final txTransaksiId = tx['id_transaksi'] ?? tx['id_transaksi'];
             if (kDebugMode) {
-              debugPrint('[NotifikasiPage]   Checking: id_mulai_nabung=$txMulaiId vs searching=$mulaiId');
+              debugPrint('[NotifikasiPage]   Checking: id_mulai_nabung=$txMulaiId, id_transaksi=$txTransaksiId vs searching=$mulaiId');
             }
             
+            // Match either by id_mulai_nabung or id_transaksi
             if ((txMulaiId != null && txMulaiId == mulaiId) ||
-                (txMulaiId != null && txMulaiId.toString() == mulaiId.toString())) {
+                (txMulaiId != null && txMulaiId.toString() == mulaiId.toString()) ||
+                (txTransaksiId != null && txTransaksiId == mulaiId) ||
+                (txTransaksiId != null && txTransaksiId.toString() == mulaiId.toString())) {
               if (kDebugMode) {
                 debugPrint('[NotifikasiPage] ✓✓✓ MATCHED! Transaction: ${tx['jenis_transaksi']} - Rp ${tx['jumlah']} - Status: ${tx['status']}');
               }
@@ -443,7 +459,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           }
         } else {
           if (kDebugMode) {
-            debugPrint('[NotifikasiPage] ✗ API response missing data or status is not SUCCESS. Body: $body');
+            debugPrint('[NotifikasiPage] ✗ API response missing data or success is not true. Body: $body');
           }
         }
       } else {

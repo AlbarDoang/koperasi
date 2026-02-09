@@ -88,7 +88,7 @@ if ($res->num_rows > 0) {
     $row = $res->fetch_assoc();
     echo json_encode(['success' => true, 'user' => [
         'id' => $row['id'],
-        'id_anggota' => $row['id'],
+        'id_pengguna' => $row['id'],
         'nis' => $row['nis'] ?? '',
         'nama' => $row['nama'],
         'no_hp' => $row['no_hp'],
@@ -100,3 +100,4 @@ if ($res->num_rows > 0) {
 }
 
 exit();
+

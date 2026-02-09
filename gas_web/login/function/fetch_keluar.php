@@ -15,7 +15,7 @@ try {
 
 	$sql = "SELECT t.*, s.nis, s.nama
             FROM tabungan t
-			JOIN pengguna s ON t.id_anggota = s.id_anggota
+			JOIN pengguna s ON t.id_pengguna = s.id_pengguna
             WHERE t.jenis = 'keluar'";
 	$params = [];
 	if (!empty($_POST['search']['value'])) {
@@ -46,8 +46,8 @@ try {
 	$stmt->execute();
 	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$countSql = "SELECT COUNT(*) FROM tabungan t JOIN siswa s ON t.id_anggota=s.id_anggota WHERE t.jenis='keluar'" . (!empty($_POST['search']['value']) ? " AND (s.nama LIKE :q OR s.nis LIKE :q)" : '');
-	$countSql = "SELECT COUNT(*) FROM tabungan t JOIN pengguna s ON t.id_anggota=s.id_anggota WHERE t.jenis='keluar'" . (!empty($_POST['search']['value']) ? " AND (s.nama LIKE :q OR s.nis LIKE :q)" : '');
+	$countSql = "SELECT COUNT(*) FROM tabungan t JOIN siswa s ON t.id_pengguna=s.id_pengguna WHERE t.jenis='keluar'" . (!empty($_POST['search']['value']) ? " AND (s.nama LIKE :q OR s.nis LIKE :q)" : '');
+	$countSql = "SELECT COUNT(*) FROM tabungan t JOIN pengguna s ON t.id_pengguna=s.id_pengguna WHERE t.jenis='keluar'" . (!empty($_POST['search']['value']) ? " AND (s.nama LIKE :q OR s.nis LIKE :q)" : '');
 	$cntStmt = $connection->prepare($countSql);
 	if (!empty($_POST['search']['value'])) $cntStmt->bindValue(':q', '%' . $_POST['search']['value'] . '%');
 	$cntStmt->execute();
@@ -87,3 +87,4 @@ try {
 	echo json_encode(['draw' => $draw, 'recordsTotal' => 0, 'recordsFiltered' => 0, 'data' => [], 'error' => 'server_error'], JSON_UNESCAPED_UNICODE);
 	exit;
 }
+

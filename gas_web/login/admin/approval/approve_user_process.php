@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 header('Content-Type: application/json');
 include '../../koneksi/config.php';
 require_once __DIR__ . '/../../../otp_helper.php';
@@ -105,7 +105,7 @@ if ($action === 'approve'){
             $cq = $con->query("SELECT COUNT(*) AS total FROM pengguna WHERE LOWER(status_akun) = 'approved'");
             $total = 0;
             if ($cq && $row = $cq->fetch_assoc()) { $total = intval($row['total']); }
-            $notifyUrl = 'http://192.168.1.8:6001/notify';
+            $notifyUrl = 'http://192.168.43.151:6001/notify';
             $payload = json_encode(['event' => 'user-approved', 'totalMembers' => $total]);
             $opts = [
                 'http' => [

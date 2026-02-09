@@ -1,7 +1,7 @@
-<?php
+﻿<?php
 // Fetch API response dan analyze dedup
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, 'http://192.168.1.8/gas/gas_web/flutter_api/get_riwayat_transaksi.php');
+curl_setopt($ch, CURLOPT_URL, 'http://192.168.1.38/gas/gas_web/flutter_api/get_riwayat_transaksi.php');
 curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, ['id_pengguna'=>3]);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -28,3 +28,4 @@ foreach($json['data'] as $item) {
   echo "\n";
 }
 ?>
+

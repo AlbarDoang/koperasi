@@ -306,8 +306,8 @@ if ($saldo_calculated === null) {
         $has_tabungan = false; // we'll verify presence
         // Determine which column to use in WHERE clause
         $whereClause = '';
-        if (!empty($user['id_anggota'])) {
-            $whereClause = "id_anggota='" . $con->real_escape_string($user['id_anggota']) . "'";
+        if (!empty($user['id_pengguna'])) {
+            $whereClause = "id_pengguna='" . $con->real_escape_string($user['id_pengguna']) . "'";
         } else if (!empty($user['id'])) {
             $check_col = $con->query("SHOW COLUMNS FROM tabungan LIKE 'id_pengguna'");
             if ($check_col && $check_col->num_rows > 0) {
@@ -349,7 +349,7 @@ if ($saldo_calculated === null) $saldo_calculated = $saldo_db;
 
 // Update pengguna.saldo in DB if different
 if (intval($saldo_calculated) !== intval($saldo_db)) {
-    $idCol = isset($user['id']) ? 'id' : (isset($user['id_anggota']) ? 'id_anggota' : null);
+    $idCol = isset($user['id']) ? 'id' : (isset($user['id_pengguna']) ? 'id_pengguna' : null);
     if ($idCol !== null) {
         $safeId = $con->real_escape_string($user[$idCol]);
         $updated = $con->query("UPDATE pengguna SET saldo='" . intval($saldo_calculated) . "' WHERE $idCol='" . $safeId . "' LIMIT 1");
@@ -433,4 +433,5 @@ if (!empty($extra)) {
 
 echo json_encode($response);
 exit();
+
 

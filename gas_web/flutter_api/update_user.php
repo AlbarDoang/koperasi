@@ -1,13 +1,13 @@
 <?php
-    // Update user password / username. Accept either id_tabungan or id_anggota for compatibility.
+    // Update user password / username. Accept either id_tabungan or id_pengguna for compatibility.
     include 'connection.php';
 
-    $id_user = isset($_POST['id_anggota']) ? $connect->real_escape_string($_POST['id_anggota']) : (isset($_POST['id_tabungan']) ? $connect->real_escape_string($_POST['id_tabungan']) : null);
+    $id_user = isset($_POST['id_pengguna']) ? $connect->real_escape_string($_POST['id_pengguna']) : (isset($_POST['id_tabungan']) ? $connect->real_escape_string($_POST['id_tabungan']) : null);
     $username = isset($_POST['username']) ? $connect->real_escape_string($_POST['username']) : null;
     $password2 = isset($_POST['password2']) ? $_POST['password2'] : null;
 
     if (empty($id_user)) {
-        echo json_encode(array("success" => false, "message" => "id_anggota/id_tabungan wajib"));
+        echo json_encode(array("success" => false, "message" => "id_pengguna/id_tabungan wajib"));
         exit();
     }
 
@@ -27,6 +27,7 @@
         exit();
     }
 
-    $sql = "UPDATE pengguna SET " . implode(', ', $sets) . " WHERE id_anggota='$id_user'";
+    $sql = "UPDATE pengguna SET " . implode(', ', $sets) . " WHERE id_pengguna='$id_user'";
     $result = $connect->query($sql);
     echo json_encode(array("success" => (bool)$result, "query" => $sql));
+

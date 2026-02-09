@@ -20,7 +20,7 @@ try {
         // Try to resolve user id for reliable lookup first
         $user_id = null;
         $id_safe = $connect->real_escape_string($id_tabungan);
-        $possibleCols = ['id_tabungan','username','no_hp','id','id_anggota'];
+        $possibleCols = ['id_tabungan','username','no_hp','id','id_pengguna'];
         $whereParts = [];
         foreach ($possibleCols as $col) {
             $chk = $connect->query("SHOW COLUMNS FROM pengguna LIKE '$col'");
@@ -63,7 +63,7 @@ try {
     // Determine user id (if available) for reliable outgoing lookup
     $user_id = null;
     $id_safe = $connect->real_escape_string($id_tabungan);
-    $possibleCols = ['id_tabungan','username','no_hp','id','id_anggota'];
+    $possibleCols = ['id_tabungan','username','no_hp','id','id_pengguna'];
     $whereParts = [];
     foreach ($possibleCols as $col) {
         $chk = $connect->query("SHOW COLUMNS FROM pengguna LIKE '$col'");
@@ -116,3 +116,4 @@ try {
     echo json_encode(["success"=>false,"message"=>"Internal server error"]);
     exit();
 }
+

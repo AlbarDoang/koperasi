@@ -21,8 +21,8 @@ try {
 		$params[':q'] = '%' . $_POST['search']['value'] . '%';
 	}
 
-	$cols = [0 => 'id_anggota', 1 => 'id_tabungan', 2 => 'no_pengenal', 3 => 'nama', 4 => 'jk', 5 => 'no_wa', 6 => 'kelas'];
-	$orderCol = 'id_anggota';
+	$cols = [0 => 'id_pengguna', 1 => 'id_tabungan', 2 => 'no_pengenal', 3 => 'nama', 4 => 'jk', 5 => 'no_wa', 6 => 'kelas'];
+	$orderCol = 'id_pengguna';
 	$orderDir = 'DESC';
 	if (isset($_POST['order'][0]['column'])) {
 		$c = intval($_POST['order'][0]['column']);
@@ -88,3 +88,4 @@ try {
 	$draw = isset($_POST['draw']) ? intval($_POST['draw']) : 1;
 	echo json_encode(['draw' => $draw, 'recordsTotal' => 0, 'recordsFiltered' => 0, 'data' => [], 'error' => 'server_error'], JSON_UNESCAPED_UNICODE);
 }
+

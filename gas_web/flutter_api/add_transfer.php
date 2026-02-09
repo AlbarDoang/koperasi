@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $password_select = 'NULL as password';
         }
         // 1. Validasi pengirim (dengan PIN)
-        // Support lookup by DB id, id_anggota, nis or phone number (no_hp)
-        // Support schemas using `id_pengguna` instead of `id_anggota`.
+        // Support lookup by DB id, id_pengguna, nis or phone number (no_hp)
+        // Support schemas using `id_pengguna` instead of `id_pengguna`.
         // Select conservative set of columns compatible with different schemas
         // Build WHERE matching only existing columns
         $where_parts = ["id='$id_pengirim'", "no_hp='$id_pengirim'"];
@@ -127,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // 2. Validasi penerima
-        // 2. Validasi penerima -- lookup by id, id_anggota, nis or phone
-        // Support schemas using `id_pengguna` instead of `id_anggota`.
+        // 2. Validasi penerima -- lookup by id, id_pengguna, nis or phone
+        // Support schemas using `id_pengguna` instead of `id_pengguna`.
         $where_parts2 = ["id='$id_penerima'", "no_hp='$id_penerima'"];
         if ($column_exists('pengguna', 'nis')) $where_parts2[] = "nis='$id_penerima'";
         $where_sql2 = '(' . implode(' OR ', $where_parts2) . ')';
@@ -206,10 +206,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // 8. Insert ke transaksi (untuk histori pengirim - keluar)
-        // Insert transaksi records compatible with current schema (uses id_anggota)
+        // Insert transaksi records compatible with current schema (uses id_pengguna)
         $saldo_sebelum_pengirim = $saldo_pengirim;
         $saldo_sesudah_pengirim = $saldo_pengirim - $nominal;
-        $stmt2 = $connect->prepare("INSERT INTO transaksi (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_keluar', ?, ?, ?, ?, ?, 'approved')");
+        $stmt2 = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_keluar', ?, ?, ?, ?, ?, 'approved')");
         if (!$stmt2) {
             error_log('add_transfer.php: prepare failed transaksi keluar: ' . $connect->error);
             throw new Exception('Terjadi kesalahan pada server (prepare transaksi keluar)');
@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 9. Insert ke transaksi (untuk histori penerima - masuk)
         $saldo_sebelum_penerima = $saldo_penerima;
         $saldo_sesudah_penerima = $saldo_penerima + $nominal;
-        $stmt3 = $connect->prepare("INSERT INTO transaksi (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_masuk', ?, ?, ?, ?, ?, 'approved')");
+        $stmt3 = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_masuk', ?, ?, ?, ?, ?, 'approved')");
         if (!$stmt3) {
             error_log('add_transfer.php: prepare failed transaksi masuk: ' . $connect->error);
             throw new Exception('Terjadi kesalahan pada server (prepare transaksi masuk)');
@@ -302,3 +302,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "message" => "Method not allowed. Use POST"
     ));
 }
+

@@ -492,20 +492,29 @@ function create_withdrawal_transaction_record($con, $user_id, $jenis_id, $amount
             return false;
         }
 
+        // Determine if this is for approved or rejected withdrawal based on note
+        $isRejected = strpos(strtolower($note), 'rejected') !== false;
+        $statusForTx = $isRejected ? 'rejected' : 'approved';
+        $kegiatanStatus = $isRejected ? 'rejected' : 'approved';
+
+        // For display: format keterangan to be user-friendly
+        $ketDisplay = $isRejected ? 'Pencairan Tabungan Ditolak' : 'Pencairan Tabungan';
+
         // Build payload with common transaction fields
         $txPayload = [
             'id_tabungan' => $user_id,  // Often used in legacy schemas
             'id_pengguna' => $user_id,  // Modern variant
-            'jenis_transaksi' => 'withdrawal_approved',
+            'jenis_transaksi' => 'penarikan',  // Use standard 'penarikan' for all withdrawal transactions
             'type' => 'pencairan_tabungan',  // For clarity
             'jumlah_keluar' => $amount,
             'jumlah' => $amount,
-            'keterangan' => $note ?: 'Withdrawal approved',
-            'tanggal' => date('Y-m-d'),
+            'status' => $statusForTx,  // Add explicit status for riwayat filter
+            'keterangan' => $ketDisplay . ': ' . $note,  // User-friendly keterangan with original note
+            'tanggal' => date('Y-m-d H:i:s'),  // Include time in Indonesia timezone (UTC+7)
             'created_at' => date('Y-m-d H:i:s'),
             'petugas' => 'admin_approval',
             'kegiatan' => 'pencairan_tabungan',
-            'kegiatan2' => 'approved',
+            'kegiatan2' => $kegiatanStatus,
             'no_keluar' => "TK-{$tab_keluar_id}"
         ];
 

@@ -1,6 +1,6 @@
-<?php
+﻿<?php
 // Simple CLI test: simulate user cairkan_tabungan then admin approve_penarikan
-$base = 'http://192.168.1.8/gas/gas_web/flutter_api';
+$base = 'http://192.168.43.151/gas/gas_web/flutter_api';
 
 // Configure test parameters
 $id_pengguna = $argv[1] ?? '95';

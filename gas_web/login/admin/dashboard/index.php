@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-bs-theme="auto">
 
 <?php include "head.php"; ?>
@@ -154,7 +154,7 @@
                                   $weekEndLabel = date('d/m/Y', strtotime('sunday this week'));
                                 ?> 
                                 <div class="card-header" align="center">
-                                  <h5 class="card-title">Grafik Transaksi Tabungan (<?php echo $weekStartLabel . ' — ' . $weekEndLabel; ?>)</h5>
+                                  <h5 class="card-title">Grafik Transaksi Tabungan (<?php echo $weekStartLabel . ' – ' . $weekEndLabel; ?>)</h5>
                                 </div>
                                 <div class="card-body">
                                   <div class="chart-container">
@@ -452,7 +452,7 @@
 
                         // Real-time updates via local WebSocket broadcaster (best-effort)
                         (function() {
-                          const wsUrl = (location.protocol === 'https:') ? 'wss://192.168.1.8:6001' : 'ws://192.168.1.8:6001';
+                          const wsUrl = (location.protocol === 'https:') ? 'wss://192.168.43.151:6001' : 'ws://192.168.43.151:6001';
                           let ws;
                           function connectWS() {
                             try {

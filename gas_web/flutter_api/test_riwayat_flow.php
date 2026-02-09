@@ -20,7 +20,7 @@ $sql = "
         t.status as txn_status,
         t.keterangan,
         t.jenis_transaksi,
-        t.id_anggota,
+        t.id_pengguna,
         t.tanggal
     FROM mulai_nabung m
     LEFT JOIN transaksi t ON t.keterangan LIKE CONCAT('Topup tunai (mulai_nabung ', m.id, ')')
@@ -41,7 +41,7 @@ if ($result && $result->num_rows > 0) {
         $mulai_status = $row['mulai_status'];
         $txn_status = $row['txn_status'];
         $keterangan = $row['keterangan'];
-        $user_id = $row['id_anggota'];
+        $user_id = $row['id_pengguna'];
         
         echo "\n$count. mulai_nabung ID $mid:\n";
         echo "   mulai_nabung.status = $mulai_status\n";
@@ -51,7 +51,7 @@ if ($result && $result->num_rows > 0) {
         
         // Check what API would return
         if ($row['id_transaksi']) {
-            $user_id = intval($row['id_anggota']);
+            $user_id = intval($row['id_pengguna']);
             
             // Simulate get_riwayat_transaksi.php
             $api_sql = "
@@ -61,7 +61,7 @@ if ($result && $result->num_rows > 0) {
                     jenis_transaksi,
                     keterangan
                 FROM transaksi
-                WHERE id_anggota = ? AND id_transaksi = ?
+                WHERE id_pengguna = ? AND id_transaksi = ?
             ";
             $stmt = $connect->prepare($api_sql);
             $txn_id = intval($row['id_transaksi']);
@@ -117,3 +117,4 @@ echo "- If transaksi.status = 'pending' → should stay in PROSES ✓\n";
 
 $connect->close();
 ?>
+

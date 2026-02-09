@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   scripts\smoke_pinjaman.ps1
 
@@ -8,7 +8,7 @@ DESCRIPTION
 USAGE
   # set env var API_TOKEN_VALID first, and optionally BASE_URL
   $env:API_TOKEN_VALID = "<valid_token>"
-  $env:BASE_URL = "http://192.168.1.8/gas/gas_web"
+  $env:BASE_URL = "http://192.168.43.151/gas/gas_web"
   pwsh ./scripts/smoke_pinjaman.ps1
 
 This script runs these checks:
@@ -21,14 +21,14 @@ This script runs these checks:
 param()
 
 $BASE_URL = $env:BASE_URL
-if (-not $BASE_URL) { $BASE_URL = "http://192.168.1.8/gas/gas_web" }
+if (-not $BASE_URL) { $BASE_URL = "http://192.168.43.151/gas/gas_web" }
 $API_TOKEN_VALID = $env:API_TOKEN_VALID
 if (-not $API_TOKEN_VALID) { Write-Error "Set API_TOKEN_VALID in environment before running."; exit 2 }
 $API_TOKEN_INVALID = $env:API_TOKEN_INVALID
 if (-not $API_TOKEN_INVALID) { $API_TOKEN_INVALID = "invalid-token-123" }
 
-function Fail($msg){ Write-Host "❌ FAIL: $msg"; exit 1 }
-function Pass($msg){ Write-Host "✅ PASS: $msg" }
+function Fail($msg){ Write-Host "âŒ FAIL: $msg"; exit 1 }
+function Pass($msg){ Write-Host "âœ… PASS: $msg" }
 
 function Invoke-Test {
   param($Method, $Url, $Headers = @{}, $Body = $null, $ExpectedCode)
@@ -80,4 +80,4 @@ $content = Invoke-Test -Method Post -Url "$BASE_URL/api/pinjaman/ajukan.php" -He
 if ($content -match '"status"\s*:\s*false') { Pass "ajukan (bad) returned 400 status:false" } else { Write-Host $content; Fail "ajukan(bad) missing status:false" }
 
 Write-Host ""
-Write-Host "ALL smoke tests passed ✅"
+Write-Host "ALL smoke tests passed âœ…"

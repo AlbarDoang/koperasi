@@ -57,7 +57,7 @@ $user_id = null;
 $id_safe = $connect->real_escape_string($id_tabungan);
 // Not all schemas include certain columns; build WHERE clause only with existing columns
 $existingCols = [];
-$possibleCols = ['id_tabungan', 'username', 'no_hp', 'id', 'id_anggota'];
+$possibleCols = ['id_tabungan', 'username', 'no_hp', 'id', 'id_pengguna'];
 foreach ($possibleCols as $col) {
     $chk = $connect->query("SHOW COLUMNS FROM pengguna LIKE '$col'");
     if ($chk && $chk->num_rows > 0) $existingCols[] = $col;
@@ -279,4 +279,5 @@ $jsonOut = json_encode($payload);
 $GLOBALS['FLUTTER_API_JSON_OUTPUT'] = true;
 echo $jsonOut;
 exit();
+
 

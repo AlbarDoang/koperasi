@@ -17,7 +17,7 @@ if (count($norm) > 0) {
     $types = str_repeat('s', count($norm));
     $vals = array_keys($norm);
 
-    $sql = "SELECT id_anggota AS id, nama, no_hp FROM pengguna WHERE REPLACE(no_hp, '+', '') IN (" . $placeholders . ")";
+    $sql = "SELECT id_pengguna AS id, nama, no_hp FROM pengguna WHERE REPLACE(no_hp, '+', '') IN (" . $placeholders . ")";
     $stmt = $connect->prepare($sql);
     if ($stmt) {
         $stmt->bind_param($types, ...$vals);
@@ -31,4 +31,5 @@ if (count($norm) > 0) {
 }
 
 echo json_encode(['success' => true, 'matched' => $matched]);
+
 

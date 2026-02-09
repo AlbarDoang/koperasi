@@ -1,10 +1,10 @@
-<?php
+﻿<?php
 // tests/integration/pinjaman_ajukan_notif_test.php
 // Test: submitting via /api/pinjaman/ajukan.php creates a notification for the user
-// Usage: php tests/integration/pinjaman_ajukan_notif_test.php --base='http://192.168.1.8/gas/gas_web' --db-name='tabungan'
+// Usage: php tests/integration/pinjaman_ajukan_notif_test.php --base='http://192.168.43.151/gas/gas_web' --db-name='tabungan'
 
 $options = getopt('', ['base::','db-name::']);
-$base = rtrim($options['base'] ?? 'http://192.168.1.8/gas/gas_web', '/');
+$base = rtrim($options['base'] ?? 'http://192.168.43.151/gas/gas_web', '/');
 $dbName = $options['db-name'] ?? 'tabungan';
 
 $mysqli = new mysqli('localhost', 'root', '', $dbName);
@@ -66,3 +66,4 @@ function cleanup($mysqli, $userId) {
     $mysqli->query("DELETE FROM pinjaman WHERE id_pengguna = " . intval($userId));
     $mysqli->query("DELETE FROM pengguna WHERE id = " . intval($userId));
 }
+

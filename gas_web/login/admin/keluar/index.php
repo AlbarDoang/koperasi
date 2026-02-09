@@ -236,15 +236,25 @@
       var no = $(this).data('no') || $(this).data('id');
       if(!no) return;
       if(!confirm('Setujui penarikan ' + no + ' ?')) return;
-      $.post('/gas/gas_web/flutter_api/approve_penarikan.php', { no_keluar: no, action: 'approve', approved_by: ADMIN_ID }, function(resp){
-        if(resp && resp.success){
-          $.growl.notice({ title: 'Sukses', message: resp.message });
-          dataTable.ajax.reload(null, false);
-        } else {
-          $.growl.error({ title: 'Gagal', message: (resp && resp.message) ? resp.message : 'Gagal memproses' });
+      $.ajax({
+        url: '/gas/gas_web/flutter_api/approve_penarikan.php',
+        type: 'POST',
+        data: { no_keluar: no, action: 'approve', approved_by: ADMIN_ID },
+        dataType: 'json',
+        success: function(response) {
+          console.log('APPROVE SUCCESS:', response);
+          if(response && response.success){
+            $.growl.notice({ title: 'Sukses', message: response.message });
+            dataTable.ajax.reload(null, false);
+          } else {
+            $.growl.error({ title: 'Gagal', message: (response && response.message) ? response.message : 'Gagal memproses' });
+          }
+        },
+        error: function(xhr) {
+          console.log("APPROVE ERROR - HTTP STATUS:", xhr.status);
+          console.log("APPROVE ERROR - RESPONSE:", xhr.responseText);
+          $.growl.error({ title: 'Gagal', message: 'Server Error: ' + xhr.status });
         }
-      }, 'json').fail(function(){
-        $.growl.error({ title: 'Gagal', message: 'Koneksi gagal' });
       });
     });
 
@@ -255,15 +265,30 @@
       if(!no) return;
       var reason = prompt('Alasan penolakan (opsional):');
       if (reason === null) return; // user cancelled
-      $.post('/gas/gas_web/flutter_api/approve_penarikan.php', { no_keluar: no, action: 'reject', approved_by: ADMIN_ID, catatan: reason }, function(resp){
-        if(resp && resp.success){
-          $.growl.notice({ title: 'Sukses', message: resp.message });
-          dataTable.ajax.reload(null, false);
-        } else {
-          $.growl.error({ title: 'Gagal', message: (resp && resp.message) ? resp.message : 'Gagal memproses' });
+      $.ajax({
+        url: '/gas/gas_web/flutter_api/approve_penarikan.php',
+        type: 'POST',
+        data: { no_keluar: no, action: 'reject', approved_by: ADMIN_ID, catatan: reason },
+        dataType: 'json',
+        success: function(response) {
+          console.log('REJECT SUCCESS:', response);
+          if(response && response.success){
+            // For rejection, show red (danger) notification since it's a negative outcome
+            if(response.data && response.data.status === 'rejected'){
+              $.growl.error({ title: 'Ditolak', message: response.message });
+            } else {
+              $.growl.notice({ title: 'Sukses', message: response.message });
+            }
+            dataTable.ajax.reload(null, false);
+          } else {
+            $.growl.error({ title: 'Gagal', message: (response && response.message) ? response.message : 'Gagal memproses' });
+          }
+        },
+        error: function(xhr) {
+          console.log("REJECT ERROR - HTTP STATUS:", xhr.status);
+          console.log("REJECT ERROR - RESPONSE:", xhr.responseText);
+          $.growl.error({ title: 'Gagal', message: 'Server Error: ' + xhr.status });
         }
-      }, 'json').fail(function(){
-        $.growl.error({ title: 'Gagal', message: 'Koneksi gagal' });
       });
     });
 

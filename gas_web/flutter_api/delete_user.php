@@ -3,12 +3,12 @@
     // historically targeted 'siswa' but mobile app expects it for 'pengguna'.
     include 'connection.php';
 
-    // Priority: id_pengguna for pengguna table, otherwise id_anggota/id_tabungan for siswa
+    // Priority: id_pengguna for pengguna table, otherwise id_pengguna/id_tabungan for siswa
     $id_pengguna = isset($_POST['id_pengguna']) ? $connect->real_escape_string($_POST['id_pengguna']) : null;
-    $id_user = $id_pengguna ?? (isset($_POST['id_anggota']) ? $connect->real_escape_string($_POST['id_anggota']) : (isset($_POST['id_tabungan']) ? $connect->real_escape_string($_POST['id_tabungan']) : null));
+    $id_user = $id_pengguna ?? (isset($_POST['id_pengguna']) ? $connect->real_escape_string($_POST['id_pengguna']) : (isset($_POST['id_tabungan']) ? $connect->real_escape_string($_POST['id_tabungan']) : null));
 
     if (empty($id_user)) {
-        echo json_encode(array("success" => false, "message" => "id_pengguna/id_anggota/id_tabungan wajib"));
+        echo json_encode(array("success" => false, "message" => "id_pengguna/id_pengguna/id_tabungan wajib"));
         exit();
     }
 
@@ -46,13 +46,14 @@
 
     // Fallback to existing siswa logic
     if (isset($_POST['soft']) && $_POST['soft'] == '1') {
-        $sql = "UPDATE pengguna SET status='nonaktif' WHERE id_anggota='$id_user'";
+        $sql = "UPDATE pengguna SET status='nonaktif' WHERE id_pengguna='$id_user'";
         $result = $connect->query($sql);
         echo json_encode(array("success" => (bool)$result));
         exit();
     }
 
     // Hard delete from pengguna
-    $sql = "DELETE FROM pengguna WHERE id_anggota='$id_user'";
+    $sql = "DELETE FROM pengguna WHERE id_pengguna='$id_user'";
     $result = $connect->query($sql);
     echo json_encode(array("success" => (bool)$result));
+

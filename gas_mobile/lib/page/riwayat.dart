@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -23,7 +24,6 @@ class RiwayatTransaksiPage extends StatefulWidget {
 class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with WidgetsBindingObserver {
   List<Map<String, dynamic>> items = [];
   bool loading = true;
-  bool _needsRefresh = false;
   String sortBy = 'newest'; // newest, oldest, amount_asc, amount_desc
   String filterType = 'semua'; // semua, listrik, pinjaman, pulsa, kuota, topup
 
@@ -52,18 +52,15 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // App resumed from background. Mark as needing refresh instead of auto-refreshing
-      // so user can choose when to refresh (pull-to-refresh or tap button).
-      _needsRefresh = true;
-      setState(() {});
+      // App resumed from background, refresh data in case transactions were updated
+      _load();
     }
   }
 
   void _onNotificationsChanged() {
-    // When notifications change, it might indicate that some transactions were updated.
-    // Do not auto-refresh to avoid interrupting user — mark page as needing refresh.
-    _needsRefresh = true;
-    setState(() {});
+    // When notifications change, it might indicate that some transactions were approved/rejected
+    // Refresh the transaction list to show updated statuses
+    _load();
   }
 
   Future<void> _load() async {
@@ -166,9 +163,9 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
                 if (jenisTrans == 'setoran') {
                   item['type'] = 'topup';
                   item['title'] = 'Setoran Tabungan';
-                } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar') {
+                } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar' || jenisTrans == 'withdrawal_approved' || jenisTrans == 'withdrawal_rejected') {
                   item['type'] = 'transfer';
-                  item['title'] = 'Penarikan Tabungan';
+                  item['title'] = 'Pencairan Tabungan';
                 } else if (jenisTrans == 'transfer_masuk') {
                   item['type'] = 'transfer_masuk';
                   item['title'] = 'Transfer Masuk';
@@ -249,21 +246,8 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
 
     // STEP 4: Initial sort by created_at DESC (newest first)
     // This will be applied first, then overridden by user's sort preference
-    list.sort((a, b) {
-      // Try to get date from multiple sources
-      final dateStrA = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? a['id']?.toString() ?? '';
-      final dateStrB = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? b['id']?.toString() ?? '';
-      
-      // Parse as DateTime if possible
-      try {
-        final dateA = DateTime.parse(dateStrA.toString());
-        final dateB = DateTime.parse(dateStrB.toString());
-        return dateB.compareTo(dateA);  // DESC: newest first
-      } catch (_) {
-        // Fallback to string comparison
-        return dateStrB.toString().compareTo(dateStrA.toString());
-      }
-    });
+// STEP 4: Initial sort by newest-first using centralized helper
+list = NotifikasiHelper.sortNotificationsNewestFirst(list);
 
     items = list;
     loading = false;
@@ -274,12 +258,8 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
       final args = Get.arguments;
       if (args != null && args is Map && args['open_id'] != null) {
         final openId = args['open_id'];
-        // Enhanced: Try to match by id, id_transaksi, or string comparison
         final idx = items.indexWhere(
-          (e) => 
-            e['id'] == openId || 
-            e['id'].toString() == openId.toString() ||
-            (e.containsKey('id_transaksi') && (e['id_transaksi'] == openId || e['id_transaksi'].toString() == openId.toString()))
+          (e) => e['id'] == openId || e['id'].toString() == openId.toString(),
         );
         if (idx != -1) {
           final it = Map<String, dynamic>.from(items[idx]);
@@ -369,7 +349,16 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
       final json = jsonDecode(resp.body);
       if (json['success'] != true || json['data'] == null) return false;
       
+      if (kDebugMode) {
+        debugPrint('[_checkPendingTopups] API response received: ${json['meta']}');
+      }
+      
       final transactions = (json['data'] as List).cast<Map<String, dynamic>>();
+      
+      if (kDebugMode && transactions.isNotEmpty) {
+        final firstTx = transactions.first;
+        debugPrint('[_checkPendingTopups] First TX from API: id=${firstTx['id_transaksi']} jenis_tabungan="${firstTx['jenis_tabungan']}" jumlah=${firstTx['jumlah']}');
+      }
       final txns = prefs.getString('transactions');
       final list = txns != null
           ? (jsonDecode(txns) as List).cast<Map<String, dynamic>>()
@@ -392,6 +381,12 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
         
         // If NOT in local list, add it (means it's a newly final transaction from API)
         if (existingIdx == -1) {
+          if (kDebugMode) {
+            debugPrint('[_checkPendingTopups] NEW TX from API: id=${apiTxn['id_transaksi']} status=${apiTxn['status']}');
+            debugPrint('[_checkPendingTopups] API TX keys: ${apiTxn.keys.join(", ")}');
+            debugPrint('[_checkPendingTopups] jenis_tabungan from API: "${apiTxn['jenis_tabungan']}"');
+          }
+          
           final newEntry = Map<String, dynamic>.from(apiTxn);
           
           // Normalize the entry format
@@ -400,9 +395,9 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
             if (jenisTrans == 'setoran') {
               newEntry['type'] = 'topup';
               newEntry['title'] = 'Setoran Tabungan';
-            } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar') {
+            } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar' || jenisTrans == 'withdrawal_approved' || jenisTrans == 'withdrawal_rejected') {
               newEntry['type'] = 'transfer';
-              newEntry['title'] = 'Penarikan Tabungan';
+              newEntry['title'] = 'Pencairan Tabungan';
             }
           }
           
@@ -426,17 +421,56 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
             final notifType = newEntry['status'] == 'rejected' ? 'rejected' : 'approved';
             final notifTitle = newEntry['status'] == 'rejected' 
                 ? 'Setoran Tabungan Ditolak' 
-                : 'Setoran Tabungan Diterima';
+                : 'Setoran Tabungan Disetujui';
+            
+            // Get jenis_tabungan and jumlah from entry with robust fallback
+            var jenisTabs = newEntry['jenis_tabungan'];
+            
+            // Debug: log what we received from API
+            if (kDebugMode) {
+              debugPrint('[Riwayat] TX ID=${newEntry['id_transaksi']}: jenis_tabungan="${jenisTabs}" (type: ${jenisTabs?.runtimeType})');
+              debugPrint('[Riwayat] Full entry keys: ${newEntry.keys.join(", ")}');
+            }
+            
+            // Multiple fallback strategies
+            if (jenisTabs == null || jenisTabs.toString().isEmpty) {
+              jenisTabs = 'Tabungan Reguler';
+            } else {
+              jenisTabs = jenisTabs.toString().trim();
+              if (jenisTabs.isEmpty) {
+                jenisTabs = 'Tabungan Reguler';
+              }
+            }
+            
+            final jumlahVal = newEntry['jumlah'] ?? newEntry['amount'] ?? 0;
+            final jumlahStr = jumlahVal is String 
+                ? jumlahVal 
+                : 'Rp ${NumberFormat('#,##0', 'id_ID').format(jumlahVal)}';
+            
             final notifMsg = newEntry['status'] == 'rejected'
-                ? 'Pengajuan setoran tabungan Anda ditolak oleh admin.'
-                : 'Pengajuan setoran tabungan Anda telah diterima dan disetujui.';
+                ? 'Pengajuan Setoran $jenisTabs Anda sebesar $jumlahStr ditolak, silahkan hubungi admin untuk informasi lebih lanjut.'
+                : 'Pengajuan Setoran $jenisTabs Anda sebesar $jumlahStr disetujui, silahkan cek saldo di halaman Tabungan';
+            
+            if (kDebugMode) {
+              debugPrint('[Riwayat] FINAL MESSAGE: $notifMsg');
+            }
             
             await NotifikasiHelper.addLocalNotification(
               type: notifType,
               title: notifTitle,
               message: notifMsg,
-              data: {'mulai_id': apiIdMulai?.toString()},
+              data: {
+                'mulai_id': apiIdMulai?.toString(),
+                'status': newEntry['status'] == 'rejected' ? 'ditolak' : 'berhasil',
+                'amount': jumlahVal,
+                'jenis_tabungan': jenisTabs,
+              },
             );
+            
+            if (kDebugMode) {
+              debugPrint('[_checkPendingTopups] ✓ Notifikasi created. Data: {jenis_tabungan: $jenisTabs, amount: $jumlahVal, status: ${newEntry['status']}}');
+            }
+            
             await NotifikasiHelper.initializeNotifications();
           } catch (_) {}
           
@@ -619,35 +653,6 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Show inline banner when new data available via notifications/resume
-                if (_needsRefresh)
-                  Container(
-                    width: double.infinity,
-                    color: const Color(0xFFFFF3E0),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Data transaksi baru tersedia. Tarik untuk refresh atau tekan tombol.',
-                            style: GoogleFonts.roboto(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            _needsRefresh = false;
-                            setState(() { loading = true; });
-                            await _load();
-                          },
-                          child: const Text('Refresh'),
-                        ),
-                      ],
-                    ),
-                  ),
                 // list with pull-to-refresh
                 Expanded(
                   child: RefreshIndicator(

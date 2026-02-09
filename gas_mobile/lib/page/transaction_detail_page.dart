@@ -44,7 +44,9 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatDateTime(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      return DateFormat('dd MMM yyyy, HH:mm').format(d);
+      // Convert from UTC to Jakarta timezone (UTC+7)
+      final jakartaTime = d.add(Duration(hours: 7));
+      return DateFormat('dd MMM yyyy, HH:mm').format(jakartaTime);
     } catch (_) {
       return v?.toString() ?? '-';
     }
@@ -53,7 +55,9 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatDateOnly(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      return DateFormat('dd MMM yyyy').format(d);
+      // Convert from UTC to Jakarta timezone (UTC+7)
+      final jakartaTime = d.add(Duration(hours: 7));
+      return DateFormat('dd MMM yyyy').format(jakartaTime);
     } catch (_) {
       return v?.toString() ?? '-';
     }
@@ -62,13 +66,113 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatTimeOnly(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      return DateFormat('HH:mm').format(d);
+      // Convert from UTC to Jakarta timezone (UTC+7)
+      // Server typically sends times in UTC, so we need to add 7 hours
+      final jakartaTime = d.add(Duration(hours: 7));
+      return DateFormat('HH:mm').format(jakartaTime);
     } catch (_) {
       return v?.toString() ?? '-';
     }
   }
 
+  String _formatJenisTabungan(String jenis) {
+    // Add "Tabungan " prefix if not already present
+    final jenisTrimmed = jenis.trim();
+    if (jenisTrimmed.toLowerCase().startsWith('tabungan ')) {
+      return jenisTrimmed;  // Already has prefix
+    }
+    return 'Tabungan ' + jenisTrimmed;  // Add prefix
+  }
+
+  String _formatKeterangan(String? keterangan) {
+    if (keterangan == null || keterangan.isEmpty) {
+      return '-';
+    }
+    
+    final keteranganLower = keterangan.toLowerCase().trim();
+    
+    // Handle format "Pencairan Tabungan Disetujui - [Jenis]" or "Pencairan Tabungan Ditolak - [Jenis]"
+    // Extract just the status part without the jenis in brackets
+    if (keteranganLower.contains('pencairan tabungan')) {
+      if (keteranganLower.contains('disetujui')) {
+        return 'Pencairan Tabungan Disetujui';
+      } else if (keteranganLower.contains('ditolak')) {
+        return 'Pencairan Tabungan Ditolak';
+      }
+    }
+    
+    // Handle format "Pencairan Tabungan: Withdrawal approved" or "Penarikan Tabungan: Withdrawal approved"
+    if ((keteranganLower.contains('pencairan tabungan') || keteranganLower.contains('penarikan tabungan')) && 
+        (keteranganLower.contains('withdrawal approved') || keteranganLower.contains('approved'))) {
+      return 'Pencairan Tabungan Disetujui';
+    }
+    
+    // Handle format setor manual: "Setoran manual oleh admin - keterangan (tabungan_masuk X)"
+    if (keteranganLower.contains('setoran manual oleh admin') && keteranganLower.contains('(tabungan_masuk')) {
+      // Extract the part before "(tabungan_masuk" and replace with new format
+      final parts = keterangan.split('(tabungan_masuk');
+      var cleanText = parts[0].trim();
+      
+      // Remove trailing dash and spaces
+      if (cleanText.endsWith('-')) {
+        cleanText = cleanText.substring(0, cleanText.length - 1).trim();
+      }
+      
+      // Add "berhasil" before dash if not already present
+      if (!cleanText.toLowerCase().contains('berhasil')) {
+        // Check if there's a dash at the end for the note
+        if (cleanText.contains('-')) {
+          final beforeDash = cleanText.substring(0, cleanText.lastIndexOf('-')).trim();
+          final afterDash = cleanText.substring(cleanText.lastIndexOf('-') + 1).trim();
+          cleanText = beforeDash + ' berhasil - ' + afterDash;
+        } else {
+          cleanText = cleanText + ' berhasil';
+        }
+      }
+      
+      return cleanText;
+    }
+    
+    // If keterangan has the format "Setoran Tabungan X (mulai_nabung Y)", extract just the first part
+    if (keteranganLower.contains('setoran tabungan') && keteranganLower.contains('mulai_nabung')) {
+      // Extract text before "(mulai_nabung"
+      final cleanText = keterangan.split('(mulai_nabung')[0].trim();
+      return cleanText;
+    }
+    
+    // If already formatted with "Setoran Tabungan", return as is
+    if (keteranganLower.contains('setoran tabungan')) {
+      return keterangan;
+    }
+    
+    // Check for old format and convert
+    if (keteranganLower.contains('mulai nabung tunai') || keteranganLower.contains('mulai_nabung')) {
+      // Extract status from the keterangan or use status field
+      final statusLabel = _getStatusLabel();
+      if (statusLabel == 'Ditolak') {
+        return 'Setoran Tabungan Ditolak';
+      } else if (statusLabel == 'Disetujui') {
+        return 'Setoran Tabungan Disetujui';
+      } else if (statusLabel == 'Menunggu') {
+        return 'Pengajuan Setoran Tabungan Menunggu Persetujuan';
+      }
+    }
+    
+    // Return original if no pattern matched
+    return keterangan;
+  }
+
   String _getTransactionType() {
+    // Check jenis_transaksi field first (from API response)
+    final jenisTransaksi = (data['jenis_transaksi'] ?? '').toString().toLowerCase();
+    if (jenisTransaksi.isNotEmpty) {
+      if (jenisTransaksi == 'setoran') return 'Setoran Tabungan';
+      if (jenisTransaksi == 'penarikan') return 'Pencairan Tabungan';
+      if (jenisTransaksi == 'transfer_masuk') return 'Transfer Masuk';
+      if (jenisTransaksi == 'transfer_keluar') return 'Transfer Keluar';
+    }
+
+    // Fallback to type field
     final type = (data['type'] ?? '').toString().toLowerCase();
     final title = (data['title'] ?? '').toString().trim().toLowerCase();
 
@@ -104,10 +208,10 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
       return 'Ditolak';
     }
     if (status == 'approved' || status == 'disetujui') {
-      return 'Selesai';
+      return 'Disetujui';
     }
     if (status == 'success' || status == 'selesai') {
-      return 'Selesai';
+      return 'Disetujui';
     }
     if (status == 'pending' || status == 'menunggu') {
       return 'Menunggu';
@@ -123,7 +227,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     if (keterangan.contains('disetujui') ||
         keterangan.contains('berhasil') ||
         keterangan.contains('sukses')) {
-      return 'Selesai';
+      return 'Disetujui';
     }
     if (data['processing'] == true) {
       return 'Menunggu';
@@ -135,7 +239,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   Color _getStatusColor() {
     final status = _getStatusLabel();
     switch (status) {
-      case 'Selesai':
+      case 'Disetujui':
         return Colors.green;
       case 'Ditolak':
         return Colors.red;
@@ -149,7 +253,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   IconData _getStatusIcon() {
     final status = _getStatusLabel();
     switch (status) {
-      case 'Selesai':
+      case 'Disetujui':
         return Icons.check_circle;
       case 'Ditolak':
         return Icons.cancel;
@@ -165,7 +269,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final nominal = data['price'] ?? data['nominal'] ?? data['amount'] ?? 0;
+    final nominal = data['jumlah'] ?? data['price'] ?? data['nominal'] ?? data['amount'] ?? 0;
     final transactionType = _getTransactionType();
     final statusLabel = _getStatusLabel();
     final statusColor = _getStatusColor();
@@ -295,7 +399,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     _buildDetailRow(
                       context,
                       'Jenis Tabungan',
-                      (data['jenis_tabungan'] ?? '').toString(),
+                      _formatJenisTabungan((data['jenis_tabungan'] ?? '').toString()),
                     ),
                   ],
 
@@ -333,7 +437,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     _buildDetailRow(
                       context,
                       'Keterangan',
-                      (data['keterangan'] ?? '').toString(),
+                      _formatKeterangan((data['keterangan'] ?? '').toString()),
                       isLongText: true,
                     ),
                   ],

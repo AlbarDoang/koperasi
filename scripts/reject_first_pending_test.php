@@ -21,7 +21,7 @@ $uid = null;
 if (isset($found['member_value'])) {
     $mc = approval_seek_member($con, $schema, $found['member_value']);
     if ($mc && isset($mc['data'])) {
-        foreach (['id_pengguna','id','id_user','id_anggota'] as $k) { if (isset($mc['data'][$k])) { $uid = (int)$mc['data'][$k]; break; } }
+        foreach (['id_pengguna','id','id_user','id_pengguna'] as $k) { if (isset($mc['data'][$k])) { $uid = (int)$mc['data'][$k]; break; } }
     }
 }
 if ($uid) {

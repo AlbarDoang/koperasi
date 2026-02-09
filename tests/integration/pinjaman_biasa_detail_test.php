@@ -1,10 +1,10 @@
-<?php
+﻿<?php
 // tests/integration/pinjaman_biasa_detail_test.php
 // Create a pengguna + pinjaman_biasa and request the admin detail modal (ajax=1) to verify member profile + saldo + reject reason display
-// Usage: php tests/integration/pinjaman_biasa_detail_test.php --base='http://192.168.1.8/gas/gas_web' --db-name='tabungan'
+// Usage: php tests/integration/pinjaman_biasa_detail_test.php --base='http://192.168.43.151/gas/gas_web' --db-name='tabungan'
 
 $options = getopt('', ['base::','db-name::']);
-$base = rtrim($options['base'] ?? 'http://192.168.1.8/gas/gas_web', '/');
+$base = rtrim($options['base'] ?? 'http://192.168.43.151/gas/gas_web', '/');
 $dbName = $options['db-name'] ?? 'tabungan';
 
 $mysqli = new mysqli('localhost', 'root', '', $dbName);
@@ -61,3 +61,4 @@ if (!$found) exit(1);
 
 echo "OK: detail page contains expected member fields and formatting\n";
 exit(0);
+

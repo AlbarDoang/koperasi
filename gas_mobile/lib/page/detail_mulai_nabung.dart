@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform, kDebugMode;
+show kIsWeb, defaultTargetPlatform, TargetPlatform, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
@@ -164,13 +164,16 @@ class _DetailMulaiNabungPageState extends State<DetailMulaiNabungPage> {
           final jenisTabungan = widget.request.purpose ?? 'Tabungan Reguler';
           final jumlahSetoran = CurrencyFormat.toIdr(widget.request.nominal);
           final detailMessage =
-              'Pengajuan setoran tabungan $jenisTabungan Anda sebesar $jumlahSetoran berhasil dikirim dan sedang menunggu verifikasi dari admin.';
+              'Pengajuan Setoran $jenisTabungan Anda sebesar $jumlahSetoran berhasil dikirim dan sedang menunggu persetujuan dari admin.';
 
           await NotifikasiHelper.addLocalNotification(
             type: 'topup',
             title: 'Pengajuan Setoran Dikirim',
             message: detailMessage,
-            data: {'mulai_id': idMulaiNabung?.toString()},
+            data: {
+              'mulai_id': idMulaiNabung?.toString(),
+              'status': 'menunggu_admin',
+            },
           );
           // Ensure merged notifications are persisted and dashboard badge updates soon
           await NotifikasiHelper.initializeNotifications();

@@ -12,7 +12,7 @@ if ($id_pengirim === '') {
 // Aggregate transfers to find most frequently used recipients by this sender
 $sql = "SELECT t.id_penerima AS id, p.nama AS nama, p.no_hp AS no_hp, COUNT(*) AS transfers, MAX(t.tanggal) AS last_transfer
         FROM t_transfer t
-        LEFT JOIN pengguna p ON t.id_penerima = p.id_anggota
+        LEFT JOIN pengguna p ON t.id_penerima = p.id_pengguna
         WHERE t.id_pengirim = '" . $connect->real_escape_string($id_pengirim) . "'
           AND t.id_penerima IS NOT NULL
           AND t.id_penerima != ''
@@ -30,4 +30,5 @@ if ($result) {
 }
 
 echo json_encode(['success' => true, 'recipients' => $recipients]);
+
 

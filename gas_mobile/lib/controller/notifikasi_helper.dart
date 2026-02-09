@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:tabungan/event/event_pref.dart';
 import 'package:tabungan/event/event_db.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 class NotifikasiHelper {
   // Notifier for UI to listen to changes in notifications store.
@@ -18,6 +19,14 @@ class NotifikasiHelper {
 
     // Exclude cashback examples and various "processing/waiting for verification" messages per product request
     if (title.contains('cashback') || msg.contains('cashback')) return true;
+    
+    // ALWAYS ALLOW WITHDRAWAL RESULTS - These are critical decision notifications that MUST be shown
+    // Check for both title keywords for approval/rejection
+    final titleLowerForDecision = titleOrig.toLowerCase();
+    if ((titleLowerForDecision.contains('pencairan disetujui') || titleLowerForDecision.contains('pencairan ditolak')) ||
+        (titleLowerForDecision.contains('withdrawal') && (titleLowerForDecision.contains('approved') || titleLowerForDecision.contains('rejected') || titleLowerForDecision.contains('disetujui') || titleLowerForDecision.contains('ditolak')))) {
+      return false;  // ALWAYS SHOW withdrawal decision notifications
+    }
     
     // Exception: Always allow tabungan result notifications (e.g., 'Setoran Tabungan Disetujui', 'Setoran Tabungan Ditolak',
     // or other variations like 'Setoran tabungan berhasil') — match using lowercase contains so variants are accepted
@@ -176,24 +185,79 @@ class NotifikasiHelper {
     return merged;
   }
 
-  /// Sort helper: newest notifications first by `created_at`.
-  /// Accepts a list of notification maps and returns a new sorted list.
+  /// Robust parse for various timestamp formats (ISO, "yyyy-MM-dd HH:mm:ss", unix secs/millis).
+  static DateTime? _parseToDate(dynamic v) {
+    if (v == null) return null;
+    try {
+      if (v is DateTime) return v;
+      if (v is int) {
+        if (v.abs() > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(v);
+        return DateTime.fromMillisecondsSinceEpoch(v * 1000);
+      }
+      if (v is double) {
+        final intVal = v.toInt();
+        if (intVal.abs() > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(intVal);
+        return DateTime.fromMillisecondsSinceEpoch(intVal * 1000);
+      }
+      final s = v.toString().trim();
+      // Try ISO-like parse
+      try {
+        return DateTime.parse(s);
+      } catch (_) {}
+      // Try common format yyyy-MM-dd HH:mm:ss
+      try {
+        return DateFormat('yyyy-MM-dd HH:mm:ss').parseLoose(s);
+      } catch (_) {}
+      // Try extracting unix timestamp digits (10..13+ digits)
+      final m = RegExp(r'\d{10,}').firstMatch(s);
+      if (m != null) {
+        final digits = m.group(0)!;
+        final numVal = int.parse(digits);
+        if (digits.length > 10) return DateTime.fromMillisecondsSinceEpoch(numVal);
+        return DateTime.fromMillisecondsSinceEpoch(numVal * 1000);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static int? _extractNumericId(Map<String, dynamic> m) {
+    try {
+      final candidates = ['id_transaksi', 'id_mulai_nabung', 'id'];
+      for (final k in candidates) {
+        if (m.containsKey(k) && m[k] != null) {
+          final n = int.tryParse(m[k].toString());
+          if (n != null) return n;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Sort helper: newest notifications first by created_at, with robust fallbacks.
   static List<Map<String, dynamic>> _sortNotificationsNewestFirst(List<Map<String, dynamic>> list) {
     final copy = List<Map<String, dynamic>>.from(list);
     copy.sort((a, b) {
-      DateTime da;
-      DateTime db;
-      try {
-        da = DateTime.parse(a['created_at'] ?? DateTime.fromMillisecondsSinceEpoch(0).toIso8601String());
-      } catch (_) {
-        da = DateTime.fromMillisecondsSinceEpoch(0);
-      }
-      try {
-        db = DateTime.parse(b['created_at'] ?? DateTime.fromMillisecondsSinceEpoch(0).toIso8601String());
-      } catch (_) {
-        db = DateTime.fromMillisecondsSinceEpoch(0);
-      }
-      return db.compareTo(da);
+      final aCandidate = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? (a['data'] is Map ? a['data']['created_at'] : null);
+      final bCandidate = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? (b['data'] is Map ? b['data']['created_at'] : null);
+
+      final da = _parseToDate(aCandidate);
+      final db = _parseToDate(bCandidate);
+
+      if (da != null && db != null) return db.compareTo(da); // newest-first
+      if (da != null && db == null) return -1; // a has date -> considered newer -> a before b
+      if (da == null && db != null) return 1;
+
+      // Fallback: compare numeric IDs if both available
+      final na = _extractNumericId(a);
+      final nb = _extractNumericId(b);
+      if (na != null && nb != null) return nb.compareTo(na); // higher id -> newer
+      if (na != null && nb == null) return -1;
+      if (na == null && nb != null) return 1;
+
+      // Final fallback: string comparison on created_at/title
+      final sa = (a['created_at'] ?? a['tanggal'] ?? a['id'] ?? a['title'] ?? '').toString();
+      final sb = (b['created_at'] ?? b['tanggal'] ?? b['id'] ?? b['title'] ?? '').toString();
+      return sb.compareTo(sa);
     });
     return copy;
   }
@@ -430,4 +494,3 @@ class NotifikasiHelper {
     }
   }
 }
-

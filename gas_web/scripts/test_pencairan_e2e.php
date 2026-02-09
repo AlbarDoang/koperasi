@@ -21,14 +21,14 @@ function call_api_file($name, $params) {
 
 $out = [];
 // 1) find a suitable active pengguna with sufficient balance
-// detect whether 'id_anggota' exists in this installation; use it if present, otherwise fall back to 'id'
+// detect whether 'id_pengguna' exists in this installation; use it if present, otherwise fall back to 'id'
 $colsRes = $connect->query("SHOW COLUMNS FROM pengguna");
 $cols = [];
 while ($cr = $colsRes->fetch_assoc()) $cols[] = $cr['Field'];
-$idField = in_array('id_anggota', $cols) ? 'id_anggota' : 'id';
+$idField = in_array('id_pengguna', $cols) ? 'id_pengguna' : 'id';
 
 // Build a safe select list based on present columns
-$selectParts = ["{$idField} AS id_anggota"];
+$selectParts = ["{$idField} AS id_pengguna"];
 $selectParts[] = (in_array('id', $cols) ? 'id' : "NULL AS id");
 $selectParts[] = (in_array('nis', $cols) ? 'nis' : "'' AS nis");
 $selectParts[] = (in_array('no_hp', $cols) ? 'no_hp' : "'' AS no_hp");
@@ -59,13 +59,13 @@ if ($amount <= 0) {
     exit(1);
 }
 
-$out['chosen_user'] = ['id_anggota' => $user['id_anggota'], 'id' => intval($user['id']), 'nis' => $user['nis'], 'no_hp' => $user['no_hp'], 'nama' => $user['nama'], 'saldo' => $initial_saldo];
+$out['chosen_user'] = ['id_pengguna' => $user['id_pengguna'], 'id' => intval($user['id']), 'nis' => $user['nis'], 'no_hp' => $user['no_hp'], 'nama' => $user['nama'], 'saldo' => $initial_saldo];
 $test_keterangan = 'E2E test pencairan ' . date('c');
 
 // 2) Call add_penarikan.php
-// Choose identifier to send to API: prefer nis/no_hp if available (alias 'nis' in our select), otherwise use id_anggota
-$api_identifier = !empty($user['nis']) ? $user['nis'] : (!empty($user['no_hp']) ? $user['no_hp'] : $user['id_anggota']);
-$addRespRaw = call_api_file('add_penarikan.php', [ 'id_anggota' => $api_identifier, 'jumlah' => $amount, 'id_petugas' => 1, 'keterangan' => $test_keterangan ]);
+// Choose identifier to send to API: prefer nis/no_hp if available (alias 'nis' in our select), otherwise use id_pengguna
+$api_identifier = !empty($user['nis']) ? $user['nis'] : (!empty($user['no_hp']) ? $user['no_hp'] : $user['id_pengguna']);
+$addRespRaw = call_api_file('add_penarikan.php', [ 'id_pengguna' => $api_identifier, 'jumlah' => $amount, 'id_petugas' => 1, 'keterangan' => $test_keterangan ]);
 $addResp = json_decode($addRespRaw, true);
 $out['add_raw'] = $addRespRaw;
 $out['add_json'] = $addResp;
@@ -124,7 +124,7 @@ if ($has_tabungan_keluar) {
     $out['tabungan_keluar_row'] = $ledger;
 } else {
     // fallback: check that pengguna.saldo was reduced by amount
-    $r2 = $connect->query("SELECT saldo FROM pengguna WHERE (id_anggota='" . $connect->real_escape_string($user['id_anggota']) . "' OR id='" . $connect->real_escape_string($user['id']) . "') LIMIT 1");
+    $r2 = $connect->query("SELECT saldo FROM pengguna WHERE (id_pengguna='" . $connect->real_escape_string($user['id_pengguna']) . "' OR id='" . $connect->real_escape_string($user['id']) . "') LIMIT 1");
     $newSaldoRow = $r2->fetch_assoc();
     $out['new_saldo'] = floatval($newSaldoRow['saldo']);
     $out['expected_saldo'] = $initial_saldo - $amount;
@@ -171,7 +171,7 @@ $cleanup['deleted_t_keluar'] = (bool)$deltk;
 $out['cleanup'] = $cleanup;
 
 // Re-check saldo after credit
-$r3 = $connect->query("SELECT saldo FROM pengguna WHERE (id_anggota='" . $connect->real_escape_string($user['id_anggota']) . "' OR id='" . $connect->real_escape_string($user['id']) . "') LIMIT 1");
+$r3 = $connect->query("SELECT saldo FROM pengguna WHERE (id_pengguna='" . $connect->real_escape_string($user['id_pengguna']) . "' OR id='" . $connect->real_escape_string($user['id']) . "') LIMIT 1");
 $saldolast = $r3->fetch_assoc();
 $out['saldo_after_cleanup'] = floatval($saldolast['saldo']);
 

@@ -115,7 +115,7 @@ if ($stmt = $connect->prepare("INSERT INTO mulai_nabung (id_tabungan, nomor_hp, 
                             // Insert pending transaction
                             $trans_table_check = @$connect->query("DESCRIBE transaksi");
                             if ($trans_table_check) {
-                                $trans_stmt = $connect->prepare("INSERT INTO transaksi (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
+                                $trans_stmt = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
                                 if ($trans_stmt) {
                                     $jenis_trans = 'setoran';
                                     // Include mulai_nabung ID in keterangan so we can identify unique submissions
@@ -151,4 +151,5 @@ if ($stmt = $connect->prepare("INSERT INTO mulai_nabung (id_tabungan, nomor_hp, 
 } else {
     echo json_encode(["success" => false, "message" => "Gagal membuat permintaan"]);
 }
+
 

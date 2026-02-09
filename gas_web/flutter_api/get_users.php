@@ -6,7 +6,7 @@
     // Prefer POST parameters but allow GET for quick checks
     $status = isset($_POST['status']) ? $connect->real_escape_string($_POST['status']) : (isset($_GET['status']) ? $connect->real_escape_string($_GET['status']) : 'aktif');
 
-    $sql = "SELECT id_anggota, nis, nama, no_hp, alamat, foto, foto_ktp, foto_selfie, saldo, status, created_at FROM pengguna";
+    $sql = "SELECT id_pengguna, nis, nama, no_hp, alamat, foto, foto_ktp, foto_selfie, saldo, status, created_at FROM pengguna";
     if (!empty($status)) {
         $sql .= " WHERE status='$status'";
     }
@@ -27,3 +27,4 @@
             "user"=> [],
         ));
     }
+

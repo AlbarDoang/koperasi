@@ -1,16 +1,16 @@
-<?php
+﻿<?php
 // CLI integration test for the full user flow
-// Usage: php flow_test.php [--base-url=http://192.168.1.8/gas/gas_web] [--db-host=localhost] [--db-user=root] [--db-pass=] [--db-name=tabungan]
+// Usage: php flow_test.php [--base-url=http://192.168.43.151/gas/gas_web] [--db-host=localhost] [--db-user=root] [--db-pass=] [--db-name=tabungan]
 
 $options = getopt('', ['base-url::','db-host::','db-user::','db-pass::','db-name::','help::']);
-$BASE = rtrim($options['base-url'] ?? 'http://192.168.1.8/gas/gas_web', '/');
+$BASE = rtrim($options['base-url'] ?? 'http://192.168.43.151/gas/gas_web', '/');
 $dbHost = $options['db-host'] ?? 'localhost';
 $dbUser = $options['db-user'] ?? 'root';
 $dbPass = $options['db-pass'] ?? '';
 $dbName = $options['db-name'] ?? 'tabungan';
 
 if (isset($options['help'])) {
-    echo "Usage: php flow_test.php [--base-url=http://192.168.1.8/gas/gas_web] [--db-host=...]\n";
+    echo "Usage: php flow_test.php [--base-url=http://192.168.43.151/gas/gas_web] [--db-host=...]\n";
     exit(0);
 }
 

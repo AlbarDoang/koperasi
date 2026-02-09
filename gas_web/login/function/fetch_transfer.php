@@ -45,7 +45,7 @@ try {
     }
 
     if ($search !== '') {
-        $where .= " AND (id_anggota LIKE :q OR keterangan LIKE :q OR jenis_transaksi LIKE :q)";
+        $where .= " AND (id_pengguna LIKE :q OR keterangan LIKE :q OR jenis_transaksi LIKE :q)";
         $params[':q'] = "%$search%";
     }
 
@@ -61,7 +61,7 @@ try {
     /* ================= ORDER ================= */
     $columns = [
         0 => 'id_transaksi',
-        1 => 'id_anggota',
+        1 => 'id_pengguna',
         2 => 'jenis_transaksi',
         3 => 'tanggal',
         4 => 'jumlah',
@@ -75,7 +75,7 @@ try {
 
     /* ================= DATA QUERY ================= */
     // Use explicit binding for LIMIT to avoid SQL injection and maintain integer typing
-    $sql = "SELECT id_transaksi, id_anggota, jenis_transaksi, jumlah, keterangan, tanggal FROM transaksi $where ORDER BY $orderCol $orderDir LIMIT :start, :length";
+    $sql = "SELECT id_transaksi, id_pengguna, jenis_transaksi, jumlah, keterangan, tanggal FROM transaksi $where ORDER BY $orderCol $orderDir LIMIT :start, :length";
 
     $stmt = $connection->prepare($sql);
     foreach ($params as $k => $v) {
@@ -90,7 +90,7 @@ try {
 
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $idTrans = (int)$row['id_transaksi'];
-        $idAnggota = htmlspecialchars($row['id_anggota']);
+        $idAnggota = htmlspecialchars($row['id_pengguna']);
         $jenis = htmlspecialchars($row['jenis_transaksi']);
         $tanggal = htmlspecialchars($row['tanggal']);
         $jumlah = (float)$row['jumlah'];
@@ -138,3 +138,4 @@ try {
         'error' => $e->getMessage()
     ], JSON_UNESCAPED_UNICODE);
 }
+

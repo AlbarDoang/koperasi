@@ -127,7 +127,7 @@ if ($cols_res) {
 }
 if (in_array('id', $cols)) $identifier_column = 'id';
 elseif (in_array('id_pengguna', $cols)) $identifier_column = 'id_pengguna';
-elseif (in_array('id_anggota', $cols)) $identifier_column = 'id_anggota';
+elseif (in_array('id_pengguna', $cols)) $identifier_column = 'id_pengguna';
 elseif (count($cols) > 0) $identifier_column = $cols[0];
 @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [get_profil] Using identifier column: " . $identifier_column . "\n", FILE_APPEND);
 
@@ -289,10 +289,10 @@ if ($saldo_calculated === null) {
     $check_tabungan = runQueryWithLog($conn, "SHOW TABLES LIKE 'tabungan'");
     if ($check_tabungan && mysqli_num_rows($check_tabungan) > 0) {
         $userIdCol = 'id';
-        // try to find id_anggota on pengguna table to join
+        // try to find id_pengguna on pengguna table to join
         $sql_tabungan = "SELECT COALESCE(SUM(CASE WHEN jenis='masuk' THEN jumlah ELSE 0 END), 0) as total_masuk, COALESCE(SUM(CASE WHEN jenis='keluar' THEN jumlah ELSE 0 END), 0) as total_keluar FROM tabungan WHERE ";
-        if (isset($user_data['id_anggota'])) {
-            $sql_tabungan .= "id_anggota='" . mysqli_real_escape_string($conn, $user_data['id_anggota']) . "'";
+        if (isset($user_data['id_pengguna'])) {
+            $sql_tabungan .= "id_pengguna='" . mysqli_real_escape_string($conn, $user_data['id_pengguna']) . "'";
         } else if (isset($user_data['id'])) {
             // Try to match if tabungan.id_pengguna exists
             $check_idPengguna = runQueryWithLog($conn, "SHOW COLUMNS FROM tabungan LIKE 'id_pengguna'");
@@ -321,12 +321,12 @@ if ($saldo_calculated === null) {
 
 // Update pengguna.saldo if mismatched to keep DB consistent
 if (intval($saldo_calculated) !== intval($saldo_db)) {
-    // Prefer 'id' column; fallback to 'id_anggota' or 'id_pengguna' if needed.
-    $userIdValue = $user_data['id'] ?? ($user_data['id_anggota'] ?? ($user_data['id_pengguna'] ?? null));
+    // Prefer 'id' column; fallback to 'id_pengguna' or 'id_pengguna' if needed.
+    $userIdValue = $user_data['id'] ?? ($user_data['id_pengguna'] ?? ($user_data['id_pengguna'] ?? null));
     $idColumn = null;
     if ($userIdValue !== null) {
         if (isset($user_data['id'])) $idColumn = 'id';
-        elseif (isset($user_data['id_anggota'])) $idColumn = 'id_anggota';
+        elseif (isset($user_data['id_pengguna'])) $idColumn = 'id_pengguna';
         elseif (isset($user_data['id_pengguna'])) $idColumn = 'id_pengguna';
     }
     if ($idColumn !== null) {
@@ -451,4 +451,5 @@ sendJsonResponse(true, 'Data profil berhasil diambil', array('data' => $profile_
     @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [get_profil] Exception: " . $e->getMessage() . "\n", FILE_APPEND);
     sendJsonResponse(false, $e->getMessage());
 }
+
 

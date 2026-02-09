@@ -97,7 +97,7 @@ if ($has_pengguna) {
     $mappings = [
         ['peng'=>'id', 'pin'=>'id_pengguna'],
         ['peng'=>'id_pengguna', 'pin'=>'id_pengguna'],
-        ['peng'=>'id_anggota', 'pin'=>'id_pengguna'],
+        ['peng'=>'id_pengguna', 'pin'=>'id_pengguna'],
         ['peng'=>'id', 'pin'=>'id'],
         ['peng'=>'id', 'pin'=>'pengguna_id'],
         ['peng'=>'id', 'pin'=>'anggota_id'],
@@ -321,3 +321,4 @@ while ($r = mysqli_fetch_assoc($res)) {
 @ob_end_clean();
 echo json_encode(['data' => $rows]);
 exit;
+

@@ -23,9 +23,9 @@ $input_id = isset($_POST['id_pengguna']) ? trim($_POST['id_pengguna']) : (isset(
 function calc_for_user($connect, $row) {
     // $row is associative array from pengguna table
     $id = intval($row['id']);
-    // Use safe_sum_transaksi by trying id_tabungan first, then id_anggota
+    // Use safe_sum_transaksi by trying id_tabungan first, then id_pengguna
     $id_tabungan_val = $row['id_tabungan'] ?? ($row['nis'] ?? '');
-    $id_anggota_val = $row['id_anggota'] ?? ($row['id_pengguna'] ?? $row['id']);
+    $id_pengguna_val = $row['id_pengguna'] ?? ($row['id_pengguna'] ?? $row['id']);
 
     $saldo_calculated = null;
     if (!empty($id_tabungan_val)) {
@@ -35,8 +35,8 @@ function calc_for_user($connect, $row) {
         }
     }
     if ($saldo_calculated === null) {
-        if (!empty($id_anggota_val)) {
-            $trx = safe_sum_transaksi($connect, $id_anggota_val);
+        if (!empty($id_pengguna_val)) {
+            $trx = safe_sum_transaksi($connect, $id_pengguna_val);
             if ($trx !== null) {
                 $saldo_calculated = floatval($trx['saldo']);
             }
@@ -127,7 +127,7 @@ $colExists = function($col) use ($connect) {
 $whereParts = [];
 if ($colExists('id')) $whereParts[] = "id = '$safe'";
 if ($colExists('id_pengguna')) $whereParts[] = "id_pengguna = '$safe'";
-if ($colExists('id_anggota')) $whereParts[] = "id_anggota = '$safe'";
+if ($colExists('id_pengguna')) $whereParts[] = "id_pengguna = '$safe'";
 if ($colExists('id_tabungan')) $whereParts[] = "id_tabungan = '$safe'";
 if ($colExists('username')) $whereParts[] = "username = '$safe'";
 if ($colExists('no_hp')) $whereParts[] = "no_hp = '$safe'";
@@ -161,4 +161,5 @@ if (intval($old) !== intval($new)) {
 }
 
 echo json_encode(["success" => true, "message" => "Sync completed", "id" => $row['id'], "old" => $old, "new" => $new, "updated" => $updated]);
+
 

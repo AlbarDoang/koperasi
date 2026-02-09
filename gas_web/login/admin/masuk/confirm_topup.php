@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_topup'])) {
               $user_id_tmp = intval($user_row_tmp['id']);
               
               // Now update transaksi record
-              $trans_update_stmt = mysqli_prepare($con, "UPDATE transaksi SET status = 'approved' WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND keterangan LIKE ?");
+              $trans_update_stmt = mysqli_prepare($con, "UPDATE transaksi SET status = 'approved' WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND keterangan LIKE ?");
               if ($trans_update_stmt) {
                   $search_pattern = '%mulai_nabung ' . intval($id_mulai) . '%';
                   mysqli_stmt_bind_param($trans_update_stmt, 'is', $user_id_tmp, $search_pattern);
@@ -188,9 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_topup'])) {
             try {
                 require_once __DIR__ . '/../../../flutter_api/notif_helper.php';
                 $created_ts = (new DateTime('now', new DateTimeZone('Asia/Jakarta')))->format('Y-m-d H:i:s');
-                $nid = create_mulai_nabung_notification($con, $user_id_numeric, $id_mulai, null, $created_ts, 'berhasil');
+                $jenis_for_notif = $row['jenis_tabungan'] ?? 'Tabungan Reguler';  // Get jenis_tabungan from mulai_nabung record
+                $nid = create_mulai_nabung_notification($con, $user_id_numeric, $id_mulai, null, $created_ts, 'berhasil', $jumlah, $jenis_for_notif);
                 if ($nid !== false) {
-                    @file_put_contents(__DIR__ . '/../../../flutter_api/api_debug.log', date('c') . " [confirm_topup] NOTIF_CREATED id={$nid} user={$user_id_numeric} mulai_id={$id_mulai} created_ts={$created_ts}\n", FILE_APPEND);
+                    @file_put_contents(__DIR__ . '/../../flutter_api/api_debug.log', date('c') . " [confirm_topup] NOTIF_CREATED id={$nid} user={$user_id_numeric} mulai_id={$id_mulai} jenis={$jenis_for_notif} amount={$jumlah} created_ts={$created_ts}\n", FILE_APPEND);
                 } else {
                     @file_put_contents(__DIR__ . '/../../../flutter_api/api_debug.log', date('c') . " [confirm_topup] NOTIF_SKIPPED user={$user_id_numeric} mulai_id={$id_mulai} created_ts={$created_ts}\n", FILE_APPEND);
                 }
@@ -280,3 +281,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_topup'])) {
 <?php include "../dashboard/js.php"; ?>
 </body>
 </html>
+

@@ -62,7 +62,7 @@ try {
 $user_id = null;
 $id_safe = $connect->real_escape_string($id_tabungan);
 $existingCols = [];
-$possibleCols = ['id_tabungan', 'username', 'no_hp', 'id', 'id_anggota'];
+$possibleCols = ['id_tabungan', 'username', 'no_hp', 'id', 'id_pengguna'];
 foreach ($possibleCols as $col) {
     $chk = $connect->query("SHOW COLUMNS FROM pengguna LIKE '$col'");
     if ($chk && $chk->num_rows > 0) $existingCols[] = $col;
@@ -124,7 +124,7 @@ if (ctype_digit($jenis)) {
             $txWhere = [];
             if (!empty($user_id)) {
                 if (in_array('id_pengguna', $txCols)) $txWhere[] = "id_pengguna = " . intval($user_id);
-                if (in_array('id_anggota', $txCols)) $txWhere[] = "id_anggota = " . intval($user_id);
+                if (in_array('id_pengguna', $txCols)) $txWhere[] = "id_pengguna = " . intval($user_id);
             }
             if (in_array('id_tabungan', $txCols)) $txWhere[] = "id_tabungan = '" . $connect->real_escape_string($id_tabungan) . "'";
             if (!empty($txWhere)) {
@@ -329,7 +329,7 @@ if ($rtc) { while ($rcc = $rtc->fetch_assoc()) $txCols[] = $rcc['Field']; }
 $txWhere = [];
 if (!empty($user_id)) {
     if (in_array('id_pengguna', $txCols)) $txWhere[] = "id_pengguna = " . intval($user_id);
-    if (in_array('id_anggota', $txCols)) $txWhere[] = "id_anggota = " . intval($user_id);
+    if (in_array('id_pengguna', $txCols)) $txWhere[] = "id_pengguna = " . intval($user_id);
 }
 if (in_array('id_tabungan', $txCols) && !empty($id_tabungan)) $txWhere[] = "id_tabungan = '" . $connect->real_escape_string($id_tabungan) . "'";
 if (!empty($txWhere)) {
@@ -390,4 +390,5 @@ exit();
     echo $json;
     exit();
 }
+
 

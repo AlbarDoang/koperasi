@@ -186,7 +186,7 @@ class _AjukanPinjamanPageState extends State<AjukanPinjamanPage> {
               final insertedId = d['id'] ?? '';
               CustomToast.success(
                 context,
-                'Pengajuan berhasil disimpan ${insertedId != '' ? '(id: $insertedId)' : ''}',
+                'Pengajuan Pinjaman Berhasil',
               );
 
               // Add immediate local notification so it appears on Notifikasi page

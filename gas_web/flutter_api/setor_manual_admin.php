@@ -25,6 +25,9 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', '0');
 
+// Set timezone ke Indonesia (UTC+7)
+date_default_timezone_set('Asia/Jakarta');
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -307,7 +310,7 @@ try {
     $stmt_saldo_before->close();
     
     // Insert ke tabel transaksi dengan struktur yang benar
-    // Struktur: id_transaksi, id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status
+    // Struktur: id_transaksi, id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status
     $jenis_transaksi = 'setoran';
     // CRITICAL: Add tabungan_masuk ID to keterangan so it can be matched during approval
     $keterangan_trans = $keterangan ? 'Setoran manual oleh admin - ' . $keterangan : 'Setoran manual oleh admin';
@@ -316,19 +319,20 @@ try {
     
     $stmt_transaksi = $connect->prepare(
         "INSERT INTO transaksi 
-         (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) 
+         (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     if (!$stmt_transaksi) {
         throw new Exception('Prepare transaksi error: ' . $connect->error);
     }
     
-    $stmt_transaksi->bind_param('isdddsss', $id_pengguna, $jenis_transaksi, $jumlah, $saldo_sebelum, $saldo_sesudah, $keterangan_trans, $tanggal_setor, $status_trans);
+    $stmt_transaksi->bind_param('isdddsss', $id_pengguna, $jenis_transaksi, $jumlah, $saldo_sebelum, $saldo_sesudah, $keterangan_trans, $now, $status_trans);
     
     if (!$stmt_transaksi->execute()) {
         // Log error tapi jangan stop proses (non-fatal)
         error_log('Transaksi insert warning (non-fatal): ' . $stmt_transaksi->error);
     }
+    $id_transaksi = $stmt_transaksi->insert_id;
     $stmt_transaksi->close();
 
     // STEP 4: Insert ke tabel mulai_nabung untuk konsistensi data
@@ -412,14 +416,17 @@ try {
     // STEP 5: Insert ke tabel notifikasi
     require_once __DIR__ . '/notif_helper.php';
     
-    $notif_title = 'Setoran Berhasil';
-    $notif_message = 'Admin telah menambahkan saldo Anda sebesar Rp' . number_format($jumlah, 0, ',', '.');
+    $notif_title = 'Setoran Tabungan Berhasil';
+    $notif_message = 'Admin telah menambahkan saldo ' . $nama_jenis_tabungan . ' Anda sebesar Rp' . number_format($jumlah, 0, ',', '.');
     
     $notif_data = json_encode([
         'type' => 'setoran_manual',
         'id_tabungan_masuk' => $tabungan_masuk_id,
+        'id_transaksi' => $id_transaksi,
         'jumlah' => $jumlah,
-        'admin_id' => $admin_id
+        'admin_id' => $admin_id,
+        'jenis_tabungan' => $nama_jenis_tabungan,
+        'status' => 'berhasil'
     ]);
     
     $notif_id = safe_create_notification(
@@ -462,3 +469,4 @@ try {
 }
 
 ?>
+

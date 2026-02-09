@@ -1,4 +1,4 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+﻿import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
@@ -12,9 +12,9 @@ class Api {
   static const String overrideLan = 'lan';
   static const String overrideAuto = 'auto';
   // Production Base URL (centralized configuration)
-  // ⚠️ UPDATE ONLY THIS VALUE IF NEEDED
-  static const String _defaultLan = 'http://192.168.1.8/gas/gas_web/flutter_api';
-  static const String _defaultEmulator = 'http://10.0.2.2/gas/gas_web/flutter_api';
+  // âš ï¸ UPDATE ONLY THIS VALUE IF NEEDED
+  static const String _defaultLan = 'https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api';
+  static const String _defaultEmulator = 'https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api';
 
   /// Initialize Api config and apply any persisted debug override.
   /// Call this during app startup (before network calls).
@@ -22,17 +22,11 @@ class Api {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // FORCE CLEAR OLD CACHED VALUES - remove any old IP overrides
+      // FORCE CLEAR OLD CACHED VALUES - remove any old IP/http overrides
       final over = prefs.getString(_prefKey);
-      if (over != null && (over.contains('192.168.1.26') || over.contains('192.168.1.27') || over.contains('192.168.1.30') || over.contains('192.168.1.4') || over.contains('192.168.1.5'))) {
+      if (over != null && (over.contains('192.168') || over.contains('10.0.2.2') || over.startsWith('http://'))) {
         await prefs.remove(_prefKey);
-        if (kDebugMode) print('🔄 CLEARED OLD CACHED BASE URL OVERRIDE (contained old IP)');
-      }
-      
-      // Also clear if it's a full URL override stored from previous version
-      if (over != null && over.startsWith('http://') && !over.contains('192.168.1.8')) {
-        await prefs.remove(_prefKey);
-        if (kDebugMode) print('🔄 CLEARED OLD CACHED URL OVERRIDE (not matching current IP)');
+        if (kDebugMode) print('ðŸ"„ CLEARED OLD CACHED BASE URL OVERRIDE (contained old IP or http URL)');
       }
       
       final currentOverride = prefs.getString(_prefKey);
@@ -44,11 +38,11 @@ class Api {
         baseUrl = _resolveBaseUrl();
       }
       
-      if (kDebugMode) print('✅ FINAL BASE URL INITIALIZED: $baseUrl');
+      if (kDebugMode) print('âœ… FINAL BASE URL INITIALIZED: $baseUrl');
     } catch (e) {
       // If anything goes wrong, fall back to the normal resolution logic
       baseUrl = _resolveBaseUrl();
-      if (kDebugMode) print('⚠️ API.init() error, fell back to: $baseUrl');
+      if (kDebugMode) print('âš ï¸ API.init() error, fell back to: $baseUrl');
     }
   }
 
@@ -76,12 +70,12 @@ class Api {
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.trim().isNotEmpty) {
       final resolved = _sanitizeBaseUrl(envUrl);
-      if (kDebugMode) print('📝 Base URL from .env: $resolved');
+      if (kDebugMode) print('ðŸ“ Base URL from .env: $resolved');
       return resolved;
     }
     // Default to the developer machine LAN IP so physical devices can reach API.
     // If you run on Android emulator you can set `.env` to use 10.0.2.2 instead.
-    if (kDebugMode) print('📝 Using default Base URL: $_defaultLan');
+    if (kDebugMode) print('ðŸ“ Using default Base URL: $_defaultLan');
     return _defaultLan;
   }
 
@@ -204,3 +198,4 @@ class Api {
   // Health-check endpoint used by the mobile client to verify reachability
   static String get ping => _endpoint('ping.php');
 }
+

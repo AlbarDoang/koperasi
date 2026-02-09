@@ -42,9 +42,9 @@ $last_trx = null;
 // Prefer transaksi if present
 $check_trx = $conn->query("SHOW TABLES LIKE 'transaksi'");
 if ($check_trx && $check_trx->num_rows > 0) {
-    $safe = $conn->real_escape_string($row['id_anggota'] ?? $row['id'] ?? '');
-    // Use id_anggota if present in transaksi
-    $sumQ = "SELECT SUM(CASE WHEN jenis_transaksi IN ('setoran','transfer_masuk') THEN jumlah ELSE 0 END) as masuk, SUM(CASE WHEN jenis_transaksi IN ('penarikan','transfer_keluar') THEN jumlah ELSE 0 END) as keluar FROM transaksi WHERE id_anggota='" . $safe . "'";
+    $safe = $conn->real_escape_string($row['id_pengguna'] ?? $row['id'] ?? '');
+    // Use id_pengguna if present in transaksi
+    $sumQ = "SELECT SUM(CASE WHEN jenis_transaksi IN ('setoran','transfer_masuk') THEN jumlah ELSE 0 END) as masuk, SUM(CASE WHEN jenis_transaksi IN ('penarikan','transfer_keluar') THEN jumlah ELSE 0 END) as keluar FROM transaksi WHERE id_pengguna='" . $safe . "'";
     $r = $conn->query($sumQ);
     if ($r && $r->num_rows > 0) {
         $arr = $r->fetch_assoc();
@@ -53,9 +53,9 @@ if ($check_trx && $check_trx->num_rows > 0) {
         $ledger_sum = $masuk - $keluar;
         $calc_source = 'transaksi';
 
-        $rCnt = $conn->query("SELECT COUNT(*) as cnt FROM transaksi WHERE id_anggota='".$safe."'");
+        $rCnt = $conn->query("SELECT COUNT(*) as cnt FROM transaksi WHERE id_pengguna='".$safe."'");
         if ($rCnt && $rCnt->num_rows > 0) $count_trx = intval($rCnt->fetch_assoc()['cnt']);
-        $rLast = $conn->query("SELECT * FROM transaksi WHERE id_anggota='".$safe."' ORDER BY id_transaksi DESC LIMIT 1");
+        $rLast = $conn->query("SELECT * FROM transaksi WHERE id_pengguna='".$safe."' ORDER BY id_transaksi DESC LIMIT 1");
         if ($rLast && $rLast->num_rows > 0) $last_trx = $rLast->fetch_assoc();
     }
 }
@@ -64,8 +64,8 @@ if ($check_trx && $check_trx->num_rows > 0) {
 if ($ledger_sum == 0.0) {
     $check_tab = $conn->query("SHOW TABLES LIKE 'tabungan'");
     if ($check_tab && $check_tab->num_rows > 0) {
-        $safeTab = $conn->real_escape_string($row['id_anggota'] ?? ($row['id'] ?? $id_tabungan));
-        $sql_tab = "SELECT SUM(CASE WHEN jenis='masuk' THEN jumlah ELSE 0 END) as masuk, SUM(CASE WHEN jenis='keluar' THEN jumlah ELSE 0 END) as keluar FROM tabungan WHERE id_anggota='".$safeTab."'";
+        $safeTab = $conn->real_escape_string($row['id_pengguna'] ?? ($row['id'] ?? $id_tabungan));
+        $sql_tab = "SELECT SUM(CASE WHEN jenis='masuk' THEN jumlah ELSE 0 END) as masuk, SUM(CASE WHEN jenis='keluar' THEN jumlah ELSE 0 END) as keluar FROM tabungan WHERE id_pengguna='".$safeTab."'";
         $r = $conn->query($sql_tab);
         if ($r && $r->num_rows > 0) {
             $arr = $r->fetch_assoc();
@@ -114,4 +114,5 @@ $changeLog = [
 file_put_contents($logDir . '/reconcile_changes.log', json_encode($changeLog) . PHP_EOL, FILE_APPEND | LOCK_EX);
 
 echo json_encode($changeLog, JSON_PRETTY_PRINT);
+
 

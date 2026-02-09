@@ -107,6 +107,20 @@ foreach ($candidates as $c) {
         continue;
     }
 
+    // Get jenis_tabungan name for notification
+    $jenis_name = 'Tabungan Reguler';  // default
+    $jenis_stmt = $connect->prepare("SELECT nama_jenis FROM jenis_tabungan WHERE id = ? LIMIT 1");
+    if ($jenis_stmt) {
+        $jenis_stmt->bind_param('i', $jenis_id);
+        $jenis_stmt->execute();
+        $jres = $jenis_stmt->get_result();
+        if ($jres && $jres->num_rows > 0) {
+            $jrow = $jres->fetch_assoc();
+            $jenis_name = $jrow['nama_jenis'] ?? 'Tabungan Reguler';
+        }
+        $jenis_stmt->close();
+    }
+
     $connect->begin_transaction();
     try {
         $created = date('Y-m-d H:i:s');
@@ -129,9 +143,9 @@ foreach ($candidates as $c) {
         // Avoid direct INSERT to notifikasi to prevent duplicates / legacy titles.
         try {
             require_once __DIR__ . '/notif_helper.php';
-            $notif2_res = create_mulai_nabung_notification($connect, $uid, $mid, $ins_id, $created);
+            $notif2_res = create_mulai_nabung_notification($connect, $uid, $mid, $ins_id, $created, 'berhasil', $jumlah, $jenis_name);
             if ($notif2_res !== false) {
-                logit("NOTIF_CREATED formal id={$notif2_res} user={$uid}");
+                logit("NOTIF_CREATED formal id={$notif2_res} user={$uid} jenis={$jenis_name} amount={$jumlah}");
             } else {
                 // If helper skipped due to dedupe or other rule, log and continue
                 error_log("[repair_backfill] create_mulai_nabung_notification returned false mid={$mid} user={$uid} ins_id={$ins_id}");

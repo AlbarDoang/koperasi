@@ -92,6 +92,11 @@ try {
             'read' => (bool)$row['read_status'],
             'created_at' => $row['created_at'],
         ];
+        
+        // DEBUG: Log any tabungan notifications
+        if ($type === 'tabungan' && strpos(strtolower($row['title']), 'setoran') !== false) {
+            error_log("[get_notifications] TX_NOTIF: id={$row['id']} title={$row['title']} msg={$row['message']} jenis={$data_parsed['jenis_tabungan']} amount={$data_parsed['amount']}");
+        }
     }
 
     echo json_encode(['success' => true, 'data' => $list]);

@@ -53,7 +53,7 @@
     if($_REQUEST['id_siswa']) {
         $idParam = $_POST['id_siswa'];
 
-        $idColumn = firstExisting($koneksi, 'pengguna', ['id', 'id_siswa', 'id_anggota']);
+        $idColumn = firstExisting($koneksi, 'pengguna', ['id', 'id_siswa', 'id_pengguna']);
         if ($idColumn === null) {
             echo '<div class="alert alert-danger">Data pengguna tidak ditemukan.</div>';
             exit;

@@ -20,8 +20,8 @@
                 t.tanggal AS waktu,
                 t.created_at
             FROM t_transfer t
-            LEFT JOIN pengguna s1 ON t.id_pengirim = s1.id_anggota
-            LEFT JOIN pengguna s2 ON t.id_penerima = s2.id_anggota
+            LEFT JOIN pengguna s1 ON t.id_pengirim = s1.id_pengguna
+            LEFT JOIN pengguna s2 ON t.id_penerima = s2.id_pengguna
             WHERE (t.id_pengirim='$id_tabungan' OR t.id_penerima='$id_tabungan')
             ORDER BY t.id_transfer DESC";
     $result = $connect->query($sql);
@@ -40,3 +40,4 @@
             "success" => false,
         ));
     }
+

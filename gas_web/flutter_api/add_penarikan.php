@@ -9,7 +9,7 @@ header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validasi input
-    $required_fields = ['id_anggota', 'jumlah', 'id_petugas'];
+    $required_fields = ['id_pengguna', 'jumlah', 'id_petugas'];
     foreach ($required_fields as $field) {
         if (empty($_POST[$field])) {
             echo json_encode(array(
@@ -20,11 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    $id_anggota = $connect->real_escape_string($_POST['id_anggota']);
+    $id_pengguna = $connect->real_escape_string($_POST['id_pengguna']);
     $jumlah = floatval($_POST['jumlah']);
     $id_petugas = intval($_POST['id_petugas']);
     $keterangan = isset($_POST['keterangan']) ? $connect->real_escape_string($_POST['keterangan']) : 'Penarikan Tunai';
     $tanggal = date('Y-m-d');
+    
+    // DEBUG LOGGING: Log id_pengguna untuk verifikasi refactor
+    error_log('[DEBUG] add_penarikan.php: Processing id_pengguna=' . $id_pengguna . ', jumlah=' . $jumlah);
     
     // Validasi jumlah
     if ($jumlah <= 0) {
@@ -44,21 +47,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $select_name = in_array('nama', $fields) ? 'nama' : (in_array('nama_lengkap', $fields) ? 'nama_lengkap' : "'' as nama");
     $select_saldo = in_array('saldo', $fields) ? 'saldo' : '0 as saldo';
 
-    // Determine lookup column for the incoming identifier (id_anggota param)
+    // Determine lookup column for the incoming identifier (id_pengguna param)
     // If caller provided a numeric id, prefer lookup by id regardless of which columns exist
-    if (ctype_digit(trim((string)$_POST['id_anggota']))) {
-        $rawId = trim((string)$_POST['id_anggota']);
-        $sql_check = "SELECT id AS id_anggota, {$select_name} as nama, '' as nis, {$select_saldo} as saldo FROM pengguna WHERE id='" . intval($rawId) . "'";
-    } else if (in_array('id_anggota', $fields)) {
-        $lookup_col = 'id_anggota';
+    if (ctype_digit(trim((string)$_POST['id_pengguna']))) {
+        $rawId = trim((string)$_POST['id_pengguna']);
+        $sql_check = "SELECT id AS id_pengguna, {$select_name} as nama, '' as nis, {$select_saldo} as saldo FROM pengguna WHERE id='" . intval($rawId) . "'";
+    } else if (in_array('id_pengguna', $fields)) {
+        $lookup_col = 'id_pengguna';
         $select_nis = in_array('nis', $fields) ? 'nis' : (in_array('no_hp', $fields) ? 'no_hp as nis' : "'' as nis");
-        $sql_check = "SELECT {$lookup_col}, {$select_name} as nama, {$select_nis} as nis, {$select_saldo} as saldo FROM pengguna WHERE {$lookup_col}='" . $connect->real_escape_string($id_anggota) . "'";
+        $sql_check = "SELECT {$lookup_col}, {$select_name} as nama, {$select_nis} as nis, {$select_saldo} as saldo FROM pengguna WHERE {$lookup_col}='" . $connect->real_escape_string($id_pengguna) . "'";
     } else if (in_array('nis', $fields) || in_array('no_hp', $fields)) {
         $col = in_array('nis', $fields) ? 'nis' : 'no_hp';
-        $sql_check = "SELECT id AS id_anggota, {$select_name} as nama, {$col} as nis, {$select_saldo} as saldo FROM pengguna WHERE {$col}='" . $connect->real_escape_string($id_anggota) . "'";
+        $sql_check = "SELECT id AS id_pengguna, {$select_name} as nama, {$col} as nis, {$select_saldo} as saldo FROM pengguna WHERE {$col}='" . $connect->real_escape_string($id_pengguna) . "'";
     } else {
         // fallback to numeric id (if everything else fails)
-        $sql_check = "SELECT id AS id_anggota, {$select_name} as nama, '' as nis, {$select_saldo} as saldo FROM pengguna WHERE id='" . intval($id_anggota) . "'";
+        $sql_check = "SELECT id AS id_pengguna, {$select_name} as nama, '' as nis, {$select_saldo} as saldo FROM pengguna WHERE id='" . intval($id_pengguna) . "'";
     }
 
     // Active-check: be tolerant with different active values and column names.
@@ -94,14 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Generate nomor penarikan
-    $no_keluar = 'PK-' . date('YmdHis') . '-' . $id_anggota;
+    $no_keluar = 'PK-' . date('YmdHis') . '-' . $id_pengguna;
     
     // Start transaction
     $GLOBALS['FLUTTER_API_JSON_OUTPUT'] = true; // signal connection.php not to inject fallback
     $connect->begin_transaction();
     try {
         // Lock user row to avoid races (SELECT ... FOR UPDATE)
-        $userId = intval($anggota['id'] ?? $anggota['id_anggota']);
+        $userId = intval($anggota['id'] ?? $anggota['id_pengguna']);
         $stmtLock = $connect->prepare("SELECT id FROM pengguna WHERE id = ? FOR UPDATE");
         $stmtLock->bind_param('i', $userId);
         $stmtLock->execute();
@@ -173,3 +176,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "message" => "Method not allowed. Use POST"
     ));
 }
+

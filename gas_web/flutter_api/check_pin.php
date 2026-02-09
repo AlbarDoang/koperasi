@@ -47,7 +47,7 @@ $check_tabungan = $con->query("SHOW TABLES LIKE 'tabungan'");
 if ($check_tabungan && $check_tabungan->num_rows > 0) {
     $has_tabungan = false;
     $whereClause = '';
-    if (!empty($user['id_anggota'])) $whereClause = "id_anggota='" . $con->real_escape_string($user['id_anggota']) . "'";
+    if (!empty($user['id_pengguna'])) $whereClause = "id_pengguna='" . $con->real_escape_string($user['id_pengguna']) . "'";
     else if (!empty($user['id'])) {
         $check_col = $con->query("SHOW COLUMNS FROM tabungan LIKE 'id_pengguna'");
         if ($check_col && $check_col->num_rows > 0) $whereClause = "id_pengguna='" . $con->real_escape_string($user['id']) . "'";
@@ -64,3 +64,4 @@ $next_page = $needs_set_pin ? 'setpin' : 'dashboard';
 
 echo json_encode(['success'=>true, 'needs_set_pin' => $needs_set_pin, 'next_page' => $next_page]);
 exit();
+

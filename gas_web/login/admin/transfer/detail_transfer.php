@@ -7,7 +7,7 @@
         // prefer id_transaksi (numeric) or fallback to no_transfer
         if (isset($_POST['id_transaksi']) && is_numeric($_POST['id_transaksi'])) {
             $id_trans = intval($_POST['id_transaksi']);
-            $sql = $con->query("SELECT id_transaksi, id_anggota, jenis_transaksi, jumlah, keterangan, tanggal FROM transaksi WHERE id_transaksi = $id_trans LIMIT 1");
+            $sql = $con->query("SELECT id_transaksi, id_pengguna, jenis_transaksi, jumlah, keterangan, tanggal FROM transaksi WHERE id_transaksi = $id_trans LIMIT 1");
             if ($sql && $sql->num_rows > 0) {
                 $row = $sql->fetch_assoc();
                 ?>
@@ -36,7 +36,7 @@
                         <td>&nbsp;</td>
                         </tr>
                         <tr><td>
-                        <input class="form-control" value="<?php echo htmlspecialchars($row['id_anggota']); ?>" readonly>
+                        <input class="form-control" value="<?php echo htmlspecialchars($row['id_pengguna']); ?>" readonly>
                         </td>
                         <td>&nbsp;</td><td>
                         <input class="form-control" value="<?php echo ($row['jenis_transaksi'] === 'transfer_masuk' ? 'Transfer Masuk' : 'Transfer Keluar'); ?>" readonly>

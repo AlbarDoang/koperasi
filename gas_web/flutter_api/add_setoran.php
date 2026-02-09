@@ -9,7 +9,7 @@ header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validasi input
-    $required_fields = ['id_anggota', 'jumlah', 'id_petugas'];
+    $required_fields = ['id_pengguna', 'jumlah', 'id_petugas'];
     foreach ($required_fields as $field) {
         if (empty($_POST[$field])) {
             echo json_encode(array(
@@ -20,11 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    $id_anggota = $connect->real_escape_string($_POST['id_anggota']);
+    $id_pengguna = $connect->real_escape_string($_POST['id_pengguna']);
     $jumlah = floatval($_POST['jumlah']);
     $id_petugas = intval($_POST['id_petugas']);
     $keterangan = isset($_POST['keterangan']) ? $connect->real_escape_string($_POST['keterangan']) : 'Setoran Tunai';
     $tanggal = date('Y-m-d');
+    
+    // DEBUG LOGGING: Log id_pengguna untuk verifikasi refactor
+    error_log('[DEBUG] add_setoran.php: Processing id_pengguna=' . $id_pengguna . ', jumlah=' . $jumlah);
     
     // Validasi jumlah
     if ($jumlah <= 0) {
@@ -36,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Cek anggota ada atau tidak
-    $sql_check = "SELECT id, id_anggota, nama, nis FROM pengguna WHERE id_anggota='$id_anggota' AND status='aktif'";
+    $sql_check = "SELECT id, id_pengguna, nama, nis FROM pengguna WHERE id_pengguna='$id_pengguna' AND status='aktif'";
     $result_check = $connect->query($sql_check);
     
     if ($result_check->num_rows == 0) {
@@ -53,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $nis = $anggota['nis'];
 
 // Generate nomor setoran
-    $no_masuk = 'SM-' . date('YmdHis') . '-' . $id_anggota;
+    $no_masuk = 'SM-' . date('YmdHis') . '-' . $id_pengguna;
     
     // Start transaction
     $connect->begin_transaction();
@@ -61,7 +64,7 @@ $nis = $anggota['nis'];
     try {
         // 1. Insert ledger masuk (masuk) via helper
         include_once __DIR__ . '/../login/function/ledger_helpers.php';
-        $ok = insert_ledger_masuk($connect, intval($id_anggota), $jumlah, 'Setoran: ' . $keterangan, 1, $id_petugas);
+        $ok = insert_ledger_masuk($connect, intval($id_pengguna), $jumlah, 'Setoran: ' . $keterangan, 1, $id_petugas);
         if (!$ok) throw new Exception('Gagal menulis ledger setoran');
         
         // 2. Insert ke tabel t_masuk
@@ -80,7 +83,7 @@ $nis = $anggota['nis'];
         $connect->commit();
         
         // Get saldo terbaru
-        $sql_saldo = "SELECT saldo FROM pengguna WHERE id_anggota='$id_anggota'";
+        $sql_saldo = "SELECT saldo FROM pengguna WHERE id_pengguna='$id_pengguna'";
         $result_saldo = $connect->query($sql_saldo);
         $row_saldo = $result_saldo->fetch_assoc();
 
@@ -120,3 +123,4 @@ $nis = $anggota['nis'];
         "message" => "Method not allowed. Use POST"
     ));
 }
+

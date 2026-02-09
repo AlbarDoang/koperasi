@@ -66,7 +66,7 @@ try {
 	$params = [];
 	$joins = [];
 
-	$siswaIdColumn = first_existing_column($connection, 'pengguna', ['id', 'id_pengguna', 'id_anggota']);
+	$siswaIdColumn = first_existing_column($connection, 'pengguna', ['id', 'id_pengguna', 'id_pengguna']);
 	if ($siswaIdColumn === null) {
 		throw new RuntimeException('Kolom ID pengguna tidak ditemukan.');
 	}
@@ -114,11 +114,11 @@ try {
 		$tabunganJoinColumn = null;
 		$tabunganKeyColumn = null;
 
-		if (column_exists($connection, 'tabungan', 'id_anggota')) {
-			$candidate = first_existing_column($connection, 'pengguna', ['id_anggota', 'id_pengguna', 'id']);
+		if (column_exists($connection, 'tabungan', 'id_pengguna')) {
+			$candidate = first_existing_column($connection, 'pengguna', ['id_pengguna', 'id_pengguna', 'id']);
 			if ($candidate !== null) {
 				$tabunganJoinColumn = $candidate;
-				$tabunganKeyColumn = 'id_anggota';
+				$tabunganKeyColumn = 'id_pengguna';
 			}
 		} elseif (column_exists($connection, 'tabungan', 'id_pengguna') || column_exists($connection, 'tabungan', 'id_siswa')) {
 			$candidate = first_existing_column($connection, 'pengguna', ['id_pengguna', 'id']);
@@ -332,3 +332,4 @@ if ($json === false) {
 ob_end_clean();
 echo $json;
 exit;
+

@@ -2,8 +2,22 @@
 /**
  * API: Approve/Reject Penarikan (Admin Only)
  * Untuk admin menyetujui atau menolak penarikan
+ * 
+ * DEBUGGING MODE: Shows real errors instead of "Internal server error"
  */
+
+// ENABLE DEBUGGING - Show real errors before loading connection.php
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
+// Set flag to tell connection.php we want debug output
+$GLOBALS['FLUTTER_API_DEBUG_MODE'] = true;
+
 include 'connection.php';
+
+// Include ledger helper functions (for create_withdrawal_transaction_record)
+require_once __DIR__ . '/../login/function/ledger_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -84,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tanggal = $penarikan['created_at'];
     $stmtTk->close();
     
-    // Get id_anggota from id_tabungan (nis, no_hp or id). Be tolerant with different schema variants.
+    // Get id_pengguna from id_tabungan (nis, no_hp or id). Be tolerant with different schema variants.
     $id_tabungan_esc = $connect->real_escape_string($id_tabungan);
     // Build SELECT columns for pengguna dynamically based on actual schema
     $pengCols = [];
@@ -95,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $selParts = [];
-    if (in_array('id_anggota', $pengCols)) $selParts[] = 'id_anggota AS id_anggota';
+    if (in_array('id_pengguna', $pengCols)) $selParts[] = 'id_pengguna AS id_pengguna';
     $selParts[] = 'id AS id';
     if (in_array('saldo', $pengCols)) $selParts[] = 'saldo';
     if (in_array('nis', $pengCols)) $selParts[] = 'nis';
@@ -135,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $siswa = $result_siswa->fetch_assoc();
-    $id_anggota = !empty($siswa['id_anggota']) ? $siswa['id_anggota'] : $siswa['id'];
+    $id_pengguna = !empty($siswa['id_pengguna']) ? $siswa['id_pengguna'] : $siswa['id'];
     $saldo_current = floatval($siswa['saldo']);
     $status_val = strtolower($siswa['status_val']);
     // Accept several variants of active/approved
@@ -197,100 +211,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @file_put_contents(__DIR__ . '/saldo_audit.log', date('c') . " APPROVE_PENARIKAN_TX_CREATION_FAILED user={$id_tabungan} tab_keluar_id={$penarikan['id']} but saldo already updated\n", FILE_APPEND);
                 // Continue anyway - saldo was updated, transaction record is optional
             }
-
-            // 5) Create notification for user
-            try {
-                require_once __DIR__ . '/notif_helper.php';
-                
-                // Get jenis name for notification
-                $jenis_label = null;
-                $sj = $connect->prepare("SELECT nama_jenis, nama FROM jenis_tabungan WHERE id = ? LIMIT 1");
-                if ($sj) {
-                    $sj->bind_param('i', $id_jenis_tabungan);
-                    $sj->execute();
-                    $rj = $sj->get_result();
-                    if ($rj && $rj->num_rows > 0) {
-                        $jrow = $rj->fetch_assoc();
-                        $jenis_label = $jrow['nama_jenis'] ?? $jrow['nama'] ?? null;
-                    }
-                    $sj->close();
-                }
-                if ($jenis_label === null) $jenis_label = 'Tabungan';
-                
-                if (function_exists('create_withdrawal_approved_notification')) {
-                    $nid = create_withdrawal_approved_notification($connect, $id_tabungan, $jenis_label, $jumlah, $new_peng_saldo, $penarikan['id']);
-                    if ($nid === false) {
-                        @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " APPROVE_PENARIKAN_NOTIF_SKIPPED user={$id_tabungan} tab_keluar_id={$penarikan['id']}\n", FILE_APPEND);
-                    }
-                }
-            } catch (Exception $notifErr) {
-                @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " APPROVE_PENARIKAN_NOTIF_ERROR user={$id_tabungan} err=" . $notifErr->getMessage() . "\n", FILE_APPEND);
-            }
-
             $message = "Penarikan berhasil disetujui";
             $new_saldo = $new_saldo_per_jenis;
 
         } else { // reject
-            // Only update tabungan_keluar.status = 'rejected'; DO NOT change saldo
-            $stmtReject = $connect->prepare("UPDATE tabungan_keluar SET status = 'rejected', rejected_reason = ?, updated_at = NOW() WHERE id = ? AND status = 'pending'");
-            if (!$stmtReject) throw new Exception('DB prepare failed for reject: ' . $connect->error);
-            $stmtReject->bind_param('si', $catatan, $penarikan['id']);
-            $stmtReject->execute();
-            $ar = $stmtReject->affected_rows;
+            // REJECTION: Update tabungan_keluar status to 'rejected' ENUM value + save rejection reason
+            // Step 1: Validate required variables before proceeding
+            if (empty($penarikan['id'])) {
+                throw new Exception('Validation failed: penarikan id kosong');
+            }
+            if (empty($id_tabungan) || empty($id_jenis_tabungan)) {
+                throw new Exception('Validation failed: id_tabungan atau id_jenis_tabungan kosong');
+            }
+            
+            // Step 2: Prepare UPDATE statement with explicit error check
+            $sql_reject = "UPDATE tabungan_keluar SET status = 'rejected', rejected_reason = ?, updated_at = NOW() WHERE id = ? AND status = 'pending'";
+            $stmtReject = $connect->prepare($sql_reject);
+            if ($stmtReject === false) {
+                throw new Exception('Prepare UPDATE failed: ' . $connect->error);
+            }
+            
+            // Step 3: Bind parameters with explicit error check
+            if ($stmtReject->bind_param('si', $catatan, $penarikan['id']) === false) {
+                $stmtReject->close();
+                throw new Exception('Bind parameter failed: ' . $stmtReject->error);
+            }
+            
+            // Step 4: Execute UPDATE with explicit error check
+            if ($stmtReject->execute() === false) {
+                $error_detail = $stmtReject->error;
+                $stmtReject->close();
+                throw new Exception('Execute UPDATE failed: ' . $error_detail);
+            }
+            
+            $affected_rows = $stmtReject->affected_rows;
             $stmtReject->close();
             
-            if ($ar <= 0) {
-                throw new Exception('Data penarikan tidak ditemukan atau sudah diproses');
+            // Step 5: Verify update was successful (must affect exactly 1 row)
+            if ($affected_rows <= 0) {
+                throw new Exception('Rejection update failed: no rows affected. Status mungkin bukan pending atau record tidak ditemukan.');
             }
-
-            // Get current balance (unchanged for rejection)
-            $rsn = $connect->prepare("SELECT COALESCE(SUM(jumlah),0) AS total_saldo FROM tabungan_masuk WHERE id_pengguna = ? AND id_jenis_tabungan = ?");
-            if ($rsn) {
-                $rsn->bind_param('ii', $id_tabungan, $id_jenis_tabungan);
-                $rsn->execute();
-                $rr = $rsn->get_result();
-                $nr = $rr->fetch_assoc();
-                $new_saldo = floatval($nr['total_saldo'] ?? 0);
-                $rsn->close();
-            } else {
-                $new_saldo = null;
+            
+            // Step 6: Get current balance for rejected withdrawal (unchanged for rejection)
+            $sql_balance = "SELECT COALESCE(SUM(jumlah),0) AS total_saldo FROM tabungan_masuk WHERE id_pengguna = ? AND id_jenis_tabungan = ?";
+            $stmtBalance = $connect->prepare($sql_balance);
+            if ($stmtBalance === false) {
+                throw new Exception('Prepare SELECT balance failed: ' . $connect->error);
             }
+            
+            if ($stmtBalance->bind_param('ii', $id_tabungan, $id_jenis_tabungan) === false) {
+                $stmtBalance->close();
+                throw new Exception('Bind parameter for balance query failed: ' . $stmtBalance->error);
+            }
+            
+            if ($stmtBalance->execute() === false) {
+                $error_detail = $stmtBalance->error;
+                $stmtBalance->close();
+                throw new Exception('Execute SELECT balance failed: ' . $error_detail);
+            }
+            
+            $resultBalance = $stmtBalance->get_result();
+            if ($resultBalance === false) {
+                $stmtBalance->close();
+                throw new Exception('Get result for balance query failed: ' . $stmtBalance->error);
+            }
+            
+            $rowBalance = $resultBalance->fetch_assoc();
+            if ($rowBalance === false) {
+                $stmtBalance->close();
+                throw new Exception('Fetch balance result failed: ' . $stmtBalance->error);
+            }
+            
+            $new_saldo = floatval($rowBalance['total_saldo'] ?? 0);
+            $stmtBalance->close();
 
-            // Create rejection notification
+            // Step 7: Create transaction record for audit trail (optional, don't fail if this fails)
             try {
-                require_once __DIR__ . '/notif_helper.php';
-                
-                // Get jenis name for notification
-                $jenis_label = null;
-                $sj = $connect->prepare("SELECT nama_jenis, nama FROM jenis_tabungan WHERE id = ? LIMIT 1");
-                if ($sj) {
-                    $sj->bind_param('i', $id_jenis_tabungan);
-                    $sj->execute();
-                    $rj = $sj->get_result();
-                    if ($rj && $rj->num_rows > 0) {
-                        $jrow = $rj->fetch_assoc();
-                        $jenis_label = $jrow['nama_jenis'] ?? $jrow['nama'] ?? null;
-                    }
-                    $sj->close();
+                $rejectionNote = "Withdrawal rejected: " . ($catatan ?: 'Admin decision');
+                $txId = create_withdrawal_transaction_record($connect, $id_tabungan, $id_jenis_tabungan, $jumlah, $penarikan['id'], $rejectionNote);
+                if ($txId === false) {
+                    error_log('[approve_penarikan REJECT] Transaction record creation failed for id=' . $penarikan['id'] . ', but rejection already committed');
                 }
-                if ($jenis_label === null) $jenis_label = 'Tabungan';
-                
-                if (function_exists('create_withdrawal_rejected_notification')) {
-                    $nid = create_withdrawal_rejected_notification($connect, $id_tabungan, $jenis_label, $jumlah, $catatan ?: 'Tidak ada keterangan', $penarikan['id']);
-                    if ($nid === false) {
-                        @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " REJECT_PENARIKAN_NOTIF_SKIPPED user={$id_tabungan} tab_keluar_id={$penarikan['id']}\n", FILE_APPEND);
-                    }
-                }
-            } catch (Exception $notifErr) {
-                @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " REJECT_PENARIKAN_NOTIF_ERROR user={$id_tabungan} err=" . $notifErr->getMessage() . "\n", FILE_APPEND);
+            } catch (Exception $txErr) {
+                error_log('[approve_penarikan REJECT] Transaction record error: ' . $txErr->getMessage());
+                // Don't throw - rejection is already committed, just log
             }
 
-            $message = "Penarikan ditolak";
+            $message = "Pencairan Ditolak";
             $new_peng_saldo = $saldo_current;
         }
         
         // Commit transaction
         $connect->commit();
+        
+        // NOW AFTER TRANSACTION IS COMMITTED, create notifications
+        // This prevents notifications from being rolled back if transaction fails
+        error_log("[approve_penarikan] NOTIFICATION_PHASE_STARTED action={$action} user={$id_tabungan}");
+        @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] NOTIFICATION_PHASE_STARTED action={$action} user={$id_tabungan}\n", FILE_APPEND);
+        
+        try {
+            require_once __DIR__ . '/notif_helper.php';
+            
+            // Get jenis name for notification
+            $jenis_label = null;
+            $sj = $connect->prepare("SELECT nama_jenis FROM jenis_tabungan WHERE id = ? LIMIT 1");
+            if ($sj) {
+                $sj->bind_param('i', $id_jenis_tabungan);
+                $sj->execute();
+                $rj = $sj->get_result();
+                if ($rj && $rj->num_rows > 0) {
+                    $jrow = $rj->fetch_assoc();
+                    $jenis_label = $jrow['nama_jenis'] ?? null;
+                }
+                $sj->close();
+            }
+            if ($jenis_label === null) $jenis_label = 'Tabungan';
+            
+            if ($action == 'approve') {
+                error_log("[approve_penarikan] CREATING_APPROVAL_NOTIF user={$id_tabungan} jenis={$jenis_label} jumlah={$jumlah}");
+                if (function_exists('create_withdrawal_approved_notification')) {
+                    $nid = create_withdrawal_approved_notification($connect, $id_tabungan, $jenis_label, $jumlah, $new_peng_saldo, $penarikan['id']);
+                    error_log("[approve_penarikan] APPROVAL_NOTIF_RESULT user={$id_tabungan} nid={$nid}");
+                    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] APPROVAL_NOTIF user={$id_tabungan} nid={$nid}\n", FILE_APPEND);
+                } else {
+                    error_log("[approve_penarikan] create_withdrawal_approved_notification NOT FOUND!");
+                    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] ERROR: create_withdrawal_approved_notification function not found\n", FILE_APPEND);
+                }
+            } else {
+                error_log("[approve_penarikan] CREATING_REJECTION_NOTIF user={$id_tabungan} jenis={$jenis_label} jumlah={$jumlah}");
+                if (function_exists('create_withdrawal_rejected_notification')) {
+                    $nid = create_withdrawal_rejected_notification($connect, $id_tabungan, $jenis_label, $jumlah, $catatan ?: 'Tidak ada keterangan', $penarikan['id']);
+                    error_log("[approve_penarikan] REJECTION_NOTIF_RESULT user={$id_tabungan} nid={$nid}");
+                    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] REJECTION_NOTIF user={$id_tabungan} nid={$nid}\n", FILE_APPEND);
+                } else {
+                    error_log("[approve_penarikan] create_withdrawal_rejected_notification NOT FOUND!");
+                    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] ERROR: create_withdrawal_rejected_notification function not found\n", FILE_APPEND);
+                }
+            }
+        } catch (Exception $notifErr) {
+            error_log("[approve_penarikan] NOTIFICATION_ERROR: " . $notifErr->getMessage());
+            @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [approve_penarikan] NOTIF_ERROR user={$id_tabungan} err=" . $notifErr->getMessage() . "\n", FILE_APPEND);
+        }
+        
+        // Signal to connection.php that we're outputting JSON
+        $GLOBALS['FLUTTER_API_JSON_OUTPUT'] = true;
         
         echo json_encode(array(
             "success" => true,
@@ -307,10 +371,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     } catch (Exception $e) {
         $connect->rollback();
-        @file_put_contents(__DIR__ . '/saldo_audit.log', date('c') . " APPROVE_PENARIKAN_FAILED user={$id_tabungan} err=" . $e->getMessage() . "\n", FILE_APPEND);
+        
+        // Multiple logging for debugging
+        $errorMsg = $e->getMessage();
+        $errorCode = $e->getCode();
+        $errorFile = $e->getFile();
+        $errorLine = $e->getLine();
+        $errorTrace = $e->getTraceAsString();
+        
+        // PHP error log
+        error_log("[approve_penarikan ERROR] action={$action} user={$id_tabungan} code={$errorCode} msg={$errorMsg} file={$errorFile} line={$errorLine}");
+        error_log("[approve_penarikan TRACE] " . str_replace("\n", " | ", $errorTrace));
+        
+        // Audit log file
+        @file_put_contents(__DIR__ . '/saldo_audit.log', date('c') . " APPROVE_PENARIKAN_FAILED action={$action} user={$id_tabungan} code={$errorCode} err={$errorMsg} file={$errorFile}:{$errorLine}\n", FILE_APPEND);
+        
+        // Signal to connection.php that we're outputting JSON (prevents fallback)
+        $GLOBALS['FLUTTER_API_JSON_OUTPUT'] = true;
+        
+        // API response - Include file and line for debugging
         echo json_encode(array(
             "success" => false,
-            "message" => "Gagal memproses approval: " . $e->getMessage()
+            "message" => "Gagal memproses {$action}: " . $errorMsg,
+            "error_code" => $errorCode,
+            "error_file" => $errorFile,
+            "error_line" => $errorLine,
+            "error_trace" => substr($errorTrace, 0, 500)  // Limited trace to avoid huge response
         ));
     }
     
@@ -320,3 +406,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "message" => "Method not allowed. Use POST"
     ));
 }
+

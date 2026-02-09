@@ -319,6 +319,7 @@ class _TabunganPageState extends State<TabunganPage>
     final TextEditingController _nominalCtrl = TextEditingController();
     String _error = '';
     bool _isSubmitting = false; // guard to ensure 1 click = 1 request
+    bool _isFormatting = false; // guard to prevent recursive formatting
 
     await showDialog<void>(
       context: context,
@@ -336,9 +337,30 @@ class _TabunganPageState extends State<TabunganPage>
                   enabled: !_isSubmitting,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: 'Nominal yang ingin dicairkan',
+                    labelText: 'Masukan Nominal yang ingin dicairkan',
                     errorText: _error.isNotEmpty ? _error : null,
                   ),
+                  onChanged: (value) {
+                    if (_isFormatting) return;
+                    _isFormatting = true;
+                    // keep only digits
+                    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.isEmpty) {
+                      setState2(() {
+                        _nominalCtrl.text = '';
+                        _nominalCtrl.selection = const TextSelection.collapsed(offset: 0);
+                      });
+                      _isFormatting = false;
+                      return;
+                    }
+                    final parsed = int.tryParse(digits) ?? 0;
+                    final formatted = CurrencyFormat.toIdr(parsed);
+                    setState2(() {
+                      _nominalCtrl.text = formatted;
+                      _nominalCtrl.selection = TextSelection.collapsed(offset: _nominalCtrl.text.length);
+                    });
+                    _isFormatting = false;
+                  },
                 ),
               ],
             ),
@@ -371,6 +393,8 @@ class _TabunganPageState extends State<TabunganPage>
                     final ok = await EventDB.cairkanTabungan(idTab, jenis, val, idJenis: idJenisTabungan);
                     if (ok) {
                       Navigator.of(ctx).pop();
+                      // Show success notification immediately
+                      if (mounted) CustomToast.success(context, 'Pengajuan pencairan Tabungan Berhasil');
                       // NOTE: removed bottom SnackBar ('Tabungan berhasil dicairkan') to avoid duplicate
                       // notifications. The primary notification is the top 'Permintaan pencairan diajukan' banner.
                       // Refresh only the necessary data (saldo + rincian) and update UI without full page reload.

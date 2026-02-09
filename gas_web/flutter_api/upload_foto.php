@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $image_data = $_POST['image_data']; // Base64 string
     $image_type = $_POST['image_type']; // 'ktp' atau 'selfie'
-    $id_anggota = isset($_POST['id_anggota']) ? $_POST['id_anggota'] : '';
+    $id_pengguna = isset($_POST['id_pengguna']) ? $_POST['id_pengguna'] : '';
     
     // Validasi image_type
     if (!in_array($image_type, ['ktp', 'selfie'])) {
@@ -80,12 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // For compatibility, return filename (no public URL)
         $image_url = $filename;
 
-        // Update database jika ada id_pengguna (disebut id_anggota di form lama)
-        if (!empty($id_anggota)) {
+        // Update database jika ada id_pengguna (disebut id_pengguna di form lama)
+        if (!empty($id_pengguna)) {
             $column = ($image_type == 'ktp') ? 'foto_ktp' : 'foto_selfie';
             // store full path in DB
             $fullPath = $file_path;
-            $sql_update = "UPDATE verifikasi_pengguna SET $column = '" . $connect->real_escape_string($fullPath) . "', updated_at = NOW() WHERE id_pengguna = '" . $connect->real_escape_string($id_anggota) . "'";
+            $sql_update = "UPDATE verifikasi_pengguna SET $column = '" . $connect->real_escape_string($fullPath) . "', updated_at = NOW() WHERE id_pengguna = '" . $connect->real_escape_string($id_pengguna) . "'";
             $connect->query($sql_update);
         }
 
@@ -99,3 +99,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 } else {
     sendJsonResponse(false, 'Method not allowed. Use POST');
 }
+

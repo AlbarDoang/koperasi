@@ -1,11 +1,11 @@
-<?php
+﻿<?php
 /**
  * COMPREHENSIVE TEST - Mulai Nabung Complete Flow
- * Tests: Submit → Approve/Reject → Verify Riwayat
+ * Tests: Submit â†’ Approve/Reject â†’ Verify Riwayat
  */
 
 // Config
-$api_base = "http://192.168.1.8/gas/gas_web/flutter_api/";
+$api_base = "http://192.168.1.38/gas/gas_web/flutter_api/";
 $test_user_hp = "081990608817";
 $test_user_id = 3;
 
@@ -24,7 +24,7 @@ function log_test($title, $success, $message = "", $data = null) {
     if (!$success) {
         $errors[] = "$title: $message";
     }
-    echo ($success ? "✅" : "❌") . " $title" . ($message ? " - $message" : "") . "\n";
+    echo ($success ? "âœ…" : "âŒ") . " $title" . ($message ? " - $message" : "") . "\n";
 }
 
 echo "=== STARTING COMPREHENSIVE FLOW TEST ===\n\n";
@@ -62,7 +62,7 @@ if (!$submit_data['success']) {
 }
 
 $id_mulai_nabung = $submit_data['id_mulai_nabung'] ?? null;
-echo "→ ID Mulai Nabung: $id_mulai_nabung\n\n";
+echo "â†’ ID Mulai Nabung: $id_mulai_nabung\n\n";
 
 // TEST 2: Check Riwayat Tabungan (should show pending entry)
 echo "--- TEST 2: Check Riwayat Tabungan (Pending) ---\n";
@@ -200,7 +200,7 @@ log_test("Submit Second Mulai Nabung",
 );
 
 $id_mulai_nabung2 = $submit_data2['id_mulai_nabung'] ?? null;
-echo "→ ID Mulai Nabung: $id_mulai_nabung2\n\n";
+echo "â†’ ID Mulai Nabung: $id_mulai_nabung2\n\n";
 
 // TEST 7: Admin Reject
 echo "--- TEST 7: Admin Reject Second Mulai Nabung ---\n";
@@ -266,12 +266,13 @@ echo "Passed: $passed / $total\n";
 if (count($errors) > 0) {
     echo "\nERRORS:\n";
     foreach ($errors as $error) {
-        echo "  ❌ $error\n";
+        echo "  âŒ $error\n";
     }
 } else {
-    echo "\n✅ ALL TESTS PASSED!\n";
+    echo "\nâœ… ALL TESTS PASSED!\n";
 }
 
 echo "\n=== RAW RESULTS ===\n";
 echo json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 ?>
+

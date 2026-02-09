@@ -101,8 +101,14 @@ try {
     $nama_pengguna = $row['nama_pengguna'] ?? null;
     $jumlah = floatval($row['jumlah']);
     $current_status = $row['status'];
-    $jenis_tabungan = $row['jenis_tabungan'] ?? 'Tabungan Reguler';
+    $jenis_tabungan = !empty($row['jenis_tabungan']) ? $row['jenis_tabungan'] : 'Tabungan Reguler';
     $stmt->close();
+
+    // Log for debugging
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [admin_verifikasi_mulai_nabung] EXTRACTED: id={$id} jenis_tabungan=({$jenis_tabungan}) jumlah={$jumlah} status={$action}\n", FILE_APPEND);
+    if (empty($jenis_tabungan)) {
+        @file_put_contents(__DIR__ . '/admin_verifikasi_error.log', date('c') . " WARNING: jenis_tabungan is EMPTY for id={$id}, fallback to Tabungan Reguler\n", FILE_APPEND);
+    }
 
     // Use shared resolver from notif_helper.php so logic is centralized
     require_once __DIR__ . '/notif_helper.php';
@@ -240,7 +246,8 @@ try {
                     // First, try to find and UPDATE the existing pending transaction for this mulai_nabung
                     // Use same pattern as buat_mulai_nabung.php for consistency: "Mulai nabung tunai (mulai_nabung {ID})"
                     $search_pattern = '%mulai_nabung ' . $id . '%';
-                    $existing_trans_query = $connect->prepare("SELECT id_transaksi FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? ORDER BY tanggal DESC LIMIT 1");
+                    $keterangan_trans = 'Setoran Tabungan Disetujui (mulai_nabung ' . $id . ')';  // Include ID for API parsing in get_riwayat_transaksi.php
+                    $existing_trans_query = $connect->prepare("SELECT id_transaksi FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? ORDER BY tanggal DESC LIMIT 1");
                     if ($existing_trans_query) {
                         $existing_trans_query->bind_param('is', $user_id, $search_pattern);
                         $existing_trans_query->execute();
@@ -250,7 +257,6 @@ try {
                             // UPDATE existing pending transaction to approved
                             $existing_row = $existing_res->fetch_assoc();
                             $existing_trans_id = $existing_row['id_transaksi'];
-                            $keterangan_trans = 'Topup tunai (mulai_nabung ' . $id . ')';
                             $update_trans_stmt = $connect->prepare("UPDATE transaksi SET status = ?, keterangan = ?, saldo_sesudah = ? WHERE id_transaksi = ?");
                             if ($update_trans_stmt) {
                                 $status_trans = 'approved';
@@ -262,7 +268,7 @@ try {
                                 }
                                 $update_trans_stmt->close();
                                 // Cleanup other pending duplicates for the same mulai_nabung
-                                $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
+                                $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                 if ($cleanup_stmt) {
                                     $cleanup_stmt->bind_param('isi', $user_id, $search_pattern, $existing_trans_id);
                                     $cleanup_stmt->execute();
@@ -271,7 +277,7 @@ try {
                             }
                         } else {
                             // No pending transaction found, create new one with status=approved
-                            $trans_stmt = $connect->prepare("INSERT INTO transaksi (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
+                            $trans_stmt = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
                             if ($trans_stmt) {
                                 $jenis_trans = 'setoran';
                                 $status_trans = 'approved';
@@ -280,7 +286,7 @@ try {
                                     $new_trans_id = $connect->insert_id;
                                     @file_put_contents(__DIR__.'/api_debug.log', date('c')." [admin_verifikasi_mulai_nabung] TRANSAKSI_CREATED insert_id={$new_trans_id} user={$user_id} jenis={$jenis_trans} amt={$jumlah}\n", FILE_APPEND);
                                     // Cleanup other pending duplicates for the same mulai_nabung
-                                    $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
+                                    $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                     if ($cleanup_stmt) {
                                         $cleanup_stmt->bind_param('isi', $user_id, $search_pattern, $new_trans_id);
                                         $cleanup_stmt->execute();
@@ -301,7 +307,7 @@ try {
                     require_once __DIR__ . '/notif_helper.php';
                     // Use approval time to set notification timestamp and include amount/jenis in message/data
                     $created_ts = $approved_at;
-                    $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil', $jumlah, $validated_jenis);
+                    $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil', $jumlah, $jenis_tabungan);
                     if ($nid !== false) {
                         $notif_id = $nid;
                         @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [admin_verifikasi_mulai_nabung] NOTIF_HELPER_CREATED_APPROVE id={$notif_id} user={$user_id} mulai_id={$id} created_ts={$created_ts}\n", FILE_APPEND);
@@ -341,7 +347,7 @@ try {
                     try {
                         require_once __DIR__ . '/notif_helper.php';
                         $created_ts = isset($created) ? $created : (new DateTime('now', new DateTimeZone('Asia/Jakarta')))->format('Y-m-d H:i:s');
-                        $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil');
+                        $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil', $jumlah, $jenis_tabungan);
                         if ($nid !== false) {
                             $notif_id = $nid;
                             @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [admin_verifikasi_mulai_nabung] NOTIF_HELPER_CREATED_LEGACY id={$notif_id} user={$user_id} mulai_id={$id} created_ts={$created_ts}\n", FILE_APPEND);
@@ -374,7 +380,7 @@ try {
             if (isset($user_id)) {
                 require_once __DIR__ . '/notif_helper.php';
                 $created_ts = $approved_at;
-                $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil', $jumlah, $validated_jenis);
+                $nid = create_mulai_nabung_notification($connect, $user_id, $id, isset($ins_id) ? $ins_id : null, $created_ts, 'berhasil', $jumlah, $jenis_tabungan);
                 if ($nid !== false) {
                     $notif_id = $nid;
                     @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [admin_verifikasi_mulai_nabung] NOTIF_HELPER_CREATED id={$notif_id} user={$user_id} mulai_id={$id} created_ts={$created_ts}\n", FILE_APPEND);
@@ -418,9 +424,9 @@ try {
                     $table_check = @$connect->query("DESCRIBE transaksi");
                     if ($table_check) {
                         // First, try to find and UPDATE the existing pending transaction for this mulai_nabung
-                        $keterangan_trans_reject = 'Mulai nabung tunai DITOLAK (mulai_nabung ' . $id . ')';
+                        $keterangan_trans_reject = 'Setoran Tabungan Ditolak (mulai_nabung ' . $id . ')';  // Include ID for API parsing in get_riwayat_transaksi.php
                         // Use 'tanggal' column for ordering; 'created_at' does not exist on transaksi
-                        $existing_trans_query = $connect->prepare("SELECT id_transaksi FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? ORDER BY tanggal DESC LIMIT 1");
+                        $existing_trans_query = $connect->prepare("SELECT id_transaksi FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? ORDER BY tanggal DESC LIMIT 1");
                         $search_pattern = '%mulai_nabung ' . $id . '%';
                         if ($existing_trans_query) {
                             $existing_trans_query->bind_param('is', $reject_user_id, $search_pattern);
@@ -442,7 +448,7 @@ try {
                                     }
                                     $update_trans_stmt->close();
                                     // Cleanup other pending duplicates for the same mulai_nabung (reject)
-                                    $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
+                                    $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                     if ($cleanup_stmt) {
                                         $cleanup_stmt->bind_param('isi', $reject_user_id, $search_pattern, $existing_trans_id);
                                         $cleanup_stmt->execute();
@@ -451,7 +457,7 @@ try {
                                 }
                             } else {
                                 // No pending transaction found, create new one with status=rejected
-                                $trans_reject_stmt = $connect->prepare("INSERT INTO transaksi (id_anggota, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
+                                $trans_reject_stmt = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
                                 if ($trans_reject_stmt) {
                                     $jenis_trans_reject = 'setoran';
                                     $status_trans_reject = 'rejected';
@@ -460,7 +466,7 @@ try {
                                         $new_reject_id = $connect->insert_id;
                                         @file_put_contents(__DIR__.'/api_debug.log', date('c')." [admin_verifikasi_mulai_nabung] TRANSAKSI_REJECT_CREATED insert_id={$new_reject_id} user={$reject_user_id} status=rejected\n", FILE_APPEND);
                                         // Cleanup other pending duplicates for the same mulai_nabung (reject)
-                                        $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_anggota = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
+                                        $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                         if ($cleanup_stmt) {
                                             $cleanup_stmt->bind_param('isi', $reject_user_id, $search_pattern, $new_reject_id);
                                             $cleanup_stmt->execute();
@@ -537,4 +543,5 @@ try {
     echo $out;
     exit();
 }
+
 

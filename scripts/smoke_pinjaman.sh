@@ -1,8 +1,8 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # scripts/smoke_pinjaman.sh
 # Curl-based smoke tests for api/pinjaman endpoints
 # Usage:
-#   export BASE_URL="http://192.168.1.8/gas/gas_web"
+#   export BASE_URL="http://192.168.43.151/gas/gas_web"
 #   export API_TOKEN_VALID="<valid_token>"
 #   ./scripts/smoke_pinjaman.sh
 #
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://192.168.1.8/gas/gas_web}"
+BASE_URL="${BASE_URL:-http://192.168.43.151/gas/gas_web}"
 API_TOKEN_VALID="${API_TOKEN_VALID:-REPLACE_WITH_VALID_TOKEN}"
 API_TOKEN_INVALID="${API_TOKEN_INVALID:-invalid-token-123}"
 
@@ -23,12 +23,12 @@ cleanup(){ rm -rf "$TMPDIR"; }
 trap cleanup EXIT
 
 fail() {
-  echo "❌ FAIL: $*"
+  echo "âŒ FAIL: $*"
   exit 1
 }
 
 pass() {
-  echo "✅ PASS: $*"
+  echo "âœ… PASS: $*"
 }
 
 test_ajukan_happy() {
@@ -121,4 +121,5 @@ test_unauthorized_invalid_token
 test_ajukan_bad_json
 
 echo
-echo "ALL smoke tests passed ✅"
+echo "ALL smoke tests passed âœ…"
+

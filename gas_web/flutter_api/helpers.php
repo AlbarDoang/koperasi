@@ -186,7 +186,7 @@ function safe_sum_transaksi($conn, $id_tabungan = null) {
     $params = '';
     // Detect which id column exists in `transaksi` to filter by (avoid Unknown column errors)
     $id_col = null;
-    foreach (['id_tabungan','id_anggota','id_pengguna','id'] as $c) {
+    foreach (['id_tabungan','id_pengguna','id_pengguna','id'] as $c) {
         $resC = $conn->query("SHOW COLUMNS FROM `transaksi` LIKE '" . $conn->real_escape_string($c) . "'");
         if ($resC && $resC->num_rows > 0) { $id_col = $c; break; }
     }
@@ -324,3 +324,4 @@ function safe_sum_transaksi($conn, $id_tabungan = null) {
     return null;
 }
 ?>
+

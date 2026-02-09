@@ -1,10 +1,18 @@
 <?php
 
+// Set timezone ke Indonesia (UTC+7) untuk consistency
+if (!ini_get('date.timezone')) {
+    date_default_timezone_set('Asia/Jakarta');
+}
 
 /**
  * Helper to safely create notifications with filtering and dedupe.
  */
 function safe_create_notification($connect, $id_pengguna, $type, $title, $message, $data_json = null) {
+    // CRITICAL LOGGING - Entry point
+    error_log("[safe_create_notification] ENTRY user={$id_pengguna} type={$type} title={$title}");
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [safe_create_notification] ENTRY user={$id_pengguna} type={$type} title={$title} msg_len=" . strlen($message) . "\n", FILE_APPEND);
+    
     $lower_title = mb_strtolower($title);
     $lower_msg = mb_strtolower($message);
 
@@ -28,6 +36,38 @@ function safe_create_notification($connect, $id_pengguna, $type, $title, $messag
         return false;
     }
 
+    // EXCEPTION: Always allow withdrawal result notifications (approval/rejection)
+    // These are critical transaction updates that users MUST see immediately
+    if ($type === 'withdrawal_approved' || $type === 'withdrawal_rejected') {
+        error_log("[safe_create_notification] WITHDRAWAL_EXCEPTION TRIGGERED user={$id_pengguna} type={$type}");
+        @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " [safe_create_notification] WITHDRAWAL_EXCEPTION type={$type} user={$id_pengguna} title={$title}\n", FILE_APPEND);
+        
+        // Skip duplicate/mulai_id checking for withdrawal results - create them immediately
+        $stmt_ins = $connect->prepare("INSERT INTO notifikasi (id_pengguna, type, title, message, data, read_status, created_at) VALUES (?, ?, ?, ?, ?, 0, NOW())");
+        if ($stmt_ins) {
+            error_log("[safe_create_notification] WITHDRAWAL_STMT_PREPARED user={$id_pengguna}");
+            $stmt_ins->bind_param('issss', $id_pengguna, $type, $title, $message, $data_json);
+            $ok = $stmt_ins->execute();
+            if ($ok) {
+                $nid = $connect->insert_id;
+                error_log("[safe_create_notification] WITHDRAWAL_NOTIF_CREATED SUCCESS nid={$nid} user={$id_pengguna} type={$type}");
+                @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [safe_create_notification] WITHDRAWAL_CREATED nid={$nid} user={$id_pengguna} type={$type} title={$title}\n", FILE_APPEND);
+                @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " [safe_create_notification] WITHDRAWAL_SUCCESS nid={$nid} user={$id_pengguna}\n", FILE_APPEND);
+                $stmt_ins->close();
+                return $nid;
+            } else {
+                error_log("[safe_create_notification] WITHDRAWAL_NOTIF_INSERT_FAILED user={$id_pengguna} stmt_err={$stmt_ins->error}");
+                @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " [safe_create_notification] WITHDRAWAL_INSERT_FAILED user={$id_pengguna} err={$stmt_ins->error}\n", FILE_APPEND);
+                $stmt_ins->close();
+                return false;
+            }
+        } else {
+            error_log("[safe_create_notification] WITHDRAWAL_NOTIF_PREPARE_FAILED user={$id_pengguna} db_err={$connect->error}");
+            @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " [safe_create_notification] WITHDRAWAL_PREPARE_FAILED user={$id_pengguna} err={$connect->error}\n", FILE_APPEND);
+            return false;
+        }
+    }
+
     // Prevent duplicate notifications within the same "mulai_nabung" context.
     // If caller provided $data_json and it contains a 'mulai_id', prefer a strict check
     // looking for existing notifications with the same user, type, title and same
@@ -44,36 +84,26 @@ function safe_create_notification($connect, $id_pengguna, $type, $title, $messag
     }
 
     if ($mulai_id !== null) {
-        // Strict dedupe by mulai_id (+ optional status)
-        // Use JSON_UNQUOTE(JSON_EXTRACT(data, '$.mulai_id')) for comparison to avoid JSON quoting
-        if ($notif_status !== null) {
-            $q = "SELECT id, created_at FROM notifikasi WHERE id_pengguna = ? AND type = ? AND title = ? AND JSON_UNQUOTE(JSON_EXTRACT(data,'$.mulai_id')) = ? AND JSON_UNQUOTE(JSON_EXTRACT(data,'$.status')) = ? ORDER BY created_at DESC LIMIT 1";
-            $s = $connect->prepare($q);
-            if ($s) {
-                $s->bind_param('issss', $id_pengguna, $type, $title, $mulai_id, $notif_status);
-                $s->execute();
-                $r = $s->get_result();
-                if ($row = $r->fetch_assoc()) {
-                    @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " SKIPPED (dup:mulai_id+status) user={$id_pengguna} type={$type} title={$title} mulai_id={$mulai_id} status={$notif_status} last={$row['created_at']}\n", FILE_APPEND);
+        // Dedupe: check if EXACT SAME message exists for same mulai_id
+        // This allows updates to the message (e.g., from "Pengajuan Setoran Anda..." to "Pengajuan Setoran Qurban Anda...")
+        $q = "SELECT id, created_at, message FROM notifikasi WHERE id_pengguna = ? AND type = ? AND title = ? AND JSON_UNQUOTE(JSON_EXTRACT(data,'$.mulai_id')) = ? ORDER BY created_at DESC LIMIT 1";
+        $s = $connect->prepare($q);
+        if ($s) {
+            $s->bind_param('isss', $id_pengguna, $type, $title, $mulai_id);
+            $s->execute();
+            $r = $s->get_result();
+            if ($row = $r->fetch_assoc()) {
+                // If message is DIFFERENT from existing, allow new notification (permit updates)
+                // Only skip if EXACT message already exists
+                if ($row['message'] === $message) {
+                    @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " SKIPPED (dup:exact_msg) user={$id_pengguna} type={$type} title={$title} mulai_id={$mulai_id} last={$row['created_at']}\n", FILE_APPEND);
                     $s->close();
                     return false;
                 }
-                $s->close();
+                // Message is different - allow creation (this is an update)
+                @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " ALLOWED (msg_update) user={$id_pengguna} title={$title} old_msg={$row['message']} new_msg={$message}\n", FILE_APPEND);
             }
-        } else {
-            $q = "SELECT id, created_at FROM notifikasi WHERE id_pengguna = ? AND type = ? AND title = ? AND JSON_UNQUOTE(JSON_EXTRACT(data,'$.mulai_id')) = ? ORDER BY created_at DESC LIMIT 1";
-            $s = $connect->prepare($q);
-            if ($s) {
-                $s->bind_param('isss', $id_pengguna, $type, $title, $mulai_id);
-                $s->execute();
-                $r = $s->get_result();
-                if ($row = $r->fetch_assoc()) {
-                    @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " SKIPPED (dup:mulai_id) user={$id_pengguna} type={$type} title={$title} mulai_id={$mulai_id} last={$row['created_at']}\n", FILE_APPEND);
-                    $s->close();
-                    return false;
-                }
-                $s->close();
-            }
+            $s->close();
         }
     }
 
@@ -119,20 +149,23 @@ function safe_create_notification($connect, $id_pengguna, $type, $title, $messag
         $ok = $stmt_ins->execute();
         if ($ok) {
             $nid = $connect->insert_id;
-            @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [notif_helper] NOTIF_CREATED id={$nid} user={$id_pengguna} title={$title}\n", FILE_APPEND);
+            error_log("[safe_create_notification] NOTIF_CREATED nid={$nid} user={$id_pengguna} type={$type} title={$title}");
+            @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [safe_create_notification] NOTIF_CREATED id={$nid} user={$id_pengguna} title={$title} msg='{$message}' data={$data_json}\n", FILE_APPEND);
             $stmt_ins->close();
             return $nid;
         } else {
+            error_log("[safe_create_notification] ERROR_INSERT user={$id_pengguna} title={$title} stmt_err={$stmt_ins->error}");
             @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " ERROR_INSERT user={$id_pengguna} title={$title} err={$stmt_ins->error}\n", FILE_APPEND);
             // Debug: write to PHP error log so failures are visible
-            error_log("[notif_helper] ERROR_INSERT user={$id_pengguna} title={$title} stmt_err={$stmt_ins->error} connect_err={$connect->error}");
+            error_log("[safe_create_notification] ERROR_INSERT user={$id_pengguna} title={$title} stmt_err={$stmt_ins->error} connect_err={$connect->error}");
             $stmt_ins->close();
             return false;
         }
     } else {
+        error_log("[safe_create_notification] PREPARE_FAILED user={$id_pengguna} connect_err={$connect->error}");
         @file_put_contents(__DIR__ . '/notification_filter.log', date('c') . " PREPARE_FAILED user={$id_pengguna} err={$connect->error}\n", FILE_APPEND);
         // Debug: write to PHP error log so failures are visible
-        error_log("[notif_helper] PREPARE_FAILED user={$id_pengguna} connect_err={$connect->error}");
+        error_log("[safe_create_notification] PREPARE_FAILED user={$id_pengguna} connect_err={$connect->error}");
         return false;
     }
 }
@@ -148,28 +181,35 @@ function safe_create_notification($connect, $id_pengguna, $type, $title, $messag
  * Returns the notification id on success, or false on failure/skipped.
  */
 function create_mulai_nabung_notification($connect, $id_pengguna, $mulai_id, $tabungan_masuk_id = null, $created_at = null, $status = 'berhasil', $jumlah = null, $jenis_tabungan = null) {
-    // Format amount if provided
+    // Debug logging
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [create_mulai_nabung_notification] CALLED: user={$id_pengguna} mulai_id={$mulai_id} status={$status} jumlah={$jumlah} jenis_tabungan={$jenis_tabungan}\n", FILE_APPEND);
+    
+    // Build amount text
     $amount_text = '';
-    if ($jumlah !== null) {
+    if ($jumlah !== null && $jumlah !== '' && $jumlah != 0) {
         $amt = number_format((float)$jumlah, 0, ',', '.');
-        $amount_text = ' sebesar Rp' . $amt;
+        $amount_text = ' sebesar Rp ' . $amt;
     }
 
-    // Friendly tabungan name if provided
-    $jenis_text = '';
-    if (!empty($jenis_tabungan)) {
-        $jenis_text = ' untuk tabungan ' . $jenis_tabungan;
+    // Build jenis_tabungan text - just the name without prefix
+    $jenis_display = '';
+    if (!empty($jenis_tabungan) && $jenis_tabungan !== '0') {
+        $jenis_display = $jenis_tabungan;
     }
+
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [create_mulai_nabung_notification] BUILT: jenis_display='{$jenis_display}' amount_text='{$amount_text}'\n", FILE_APPEND);
 
     if ($status === 'berhasil') {
-        // Formal and consistent title/message for approved setoran
+        // Format: "Pengajuan Setoran [Jenis] Anda sebesar Rp [Amount] disetujui, silahkan cek saldo di halaman Tabungan"
         $title = 'Setoran Tabungan Disetujui';
-        $message = 'Setoran tabungan Anda telah diterima dan ditambahkan ke saldo.';
+        $message = 'Pengajuan Setoran' . ($jenis_display ? ' ' . $jenis_display : '') . ' Anda' . $amount_text . ' disetujui, silahkan cek saldo di halaman Tabungan';
     } else {
-        // Formal and consistent title/message for rejected setoran
+        // Format: "Pengajuan Setoran [Jenis] Anda sebesar Rp [Amount] ditolak, silahkan hubungi admin untuk informasi lebih lanjut."
         $title = 'Setoran Tabungan Ditolak';
-        $message = 'Pengajuan setoran tabungan Anda ditolak. Silakan hubungi admin untuk informasi lebih lanjut.';
+        $message = 'Pengajuan Setoran' . ($jenis_display ? ' ' . $jenis_display : '') . ' Anda' . $amount_text . ' ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
     }
+
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [create_mulai_nabung_notification] FINAL MESSAGE[{$status}]: '{$message}' (jenis='{$jenis_display}' amount='{$amount_text}')\n", FILE_APPEND);
 
     $data = json_encode([
         'mulai_id' => intval($mulai_id),
@@ -299,7 +339,7 @@ function resolve_pengguna_id_from_mulai($connect, $id_tabungan, $nomor_hp = null
 function create_setoran_diproses_notification($connect, $id_pengguna, $mulai_id = null, $created_at = null, $jumlah = null) {
     // Formal, consistent notification for the initial submission
     $title = 'Pengajuan Setoran Dikirim';
-    $message = 'Pengajuan setoran tabungan Anda berhasil dikirim dan sedang menunggu verifikasi dari admin.';
+    $message = 'Pengajuan Setoran Anda berhasil dikirim dan sedang menunggu persetujuan dari admin.';
 
     // Match data structure used by create_mulai_nabung_notification so mobile filters recognize it
     $data = json_encode([
@@ -352,15 +392,16 @@ function create_setoran_diproses_notification($connect, $id_pengguna, $mulai_id 
  * @return int|false Notification ID or false on skip/error
  */
 function create_withdrawal_pending_notification($connect, $user_id, $jenis_name, $amount, $tab_keluar_id) {
+    error_log("[create_withdrawal_pending_notification] CALLED user={$user_id} jenis={$jenis_name} amount={$amount} tab_keluar_id={$tab_keluar_id}");
     if (!$connect) return false;
 
     $user_id = intval($user_id);
     $amount = floatval($amount);
     $tab_keluar_id = intval($tab_keluar_id);
 
-    $title = 'Permintaan Pencairan Sedang Diproses';
+    $title = 'Pengajuan Pencairan Dikirim';
     $amountFormatted = number_format($amount, 0, ',', '.');
-    $message = "Permintaan pencairan sebesar Rp {$amountFormatted} dari {$jenis_name} sedang dalam proses verifikasi oleh admin.";
+    $message = "Pengajuan pencairan sebesar Rp {$amountFormatted} dari Tabungan {$jenis_name} sedang menunggu persetujuan dari admin.";
 
     $data = json_encode([
         'tabungan_keluar_id' => $tab_keluar_id,
@@ -399,6 +440,8 @@ function create_withdrawal_pending_notification($connect, $user_id, $jenis_name,
  * @return int|false Notification ID or false on skip/error
  */
 function create_withdrawal_approved_notification($connect, $user_id, $jenis_name, $amount, $new_saldo, $tab_keluar_id) {
+    error_log("[create_withdrawal_approved_notification] CALLED user={$user_id} jenis={$jenis_name} amount={$amount} new_saldo={$new_saldo} tab_keluar_id={$tab_keluar_id}");
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [create_withdrawal_approved_notification] CALLED user={$user_id}\n", FILE_APPEND);
     if (!$connect) return false;
 
     $user_id = intval($user_id);
@@ -409,7 +452,7 @@ function create_withdrawal_approved_notification($connect, $user_id, $jenis_name
     $title = 'Pencairan Disetujui';
     $amountFormatted = number_format($amount, 0, ',', '.');
     $saldoFormatted = number_format($new_saldo, 0, ',', '.');
-    $message = "Pencairan sebesar Rp {$amountFormatted} dari {$jenis_name} telah disetujui dan dikreditkan ke saldo bebas Anda. Saldo bebas saat ini: Rp {$saldoFormatted}.";
+    $message = "Pencairan sebesar Rp {$amountFormatted} dari Tabungan {$jenis_name} telah disetujui dan sudah ditambahkan ke saldo bebas Anda. Saldo bebas saat ini Rp {$saldoFormatted}";
 
     $data = json_encode([
         'tabungan_keluar_id' => $tab_keluar_id,
@@ -449,6 +492,8 @@ function create_withdrawal_approved_notification($connect, $user_id, $jenis_name
  * @return int|false Notification ID or false on skip/error
  */
 function create_withdrawal_rejected_notification($connect, $user_id, $jenis_name, $amount, $reason, $tab_keluar_id) {
+    error_log("[create_withdrawal_rejected_notification] CALLED user={$user_id} jenis={$jenis_name} amount={$amount} reason={$reason} tab_keluar_id={$tab_keluar_id}");
+    @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [create_withdrawal_rejected_notification] CALLED user={$user_id}\n", FILE_APPEND);
     if (!$connect) return false;
 
     $user_id = intval($user_id);
@@ -458,7 +503,7 @@ function create_withdrawal_rejected_notification($connect, $user_id, $jenis_name
 
     $title = 'Pencairan Ditolak';
     $amountFormatted = number_format($amount, 0, ',', '.');
-    $message = "Pencairan sebesar Rp {$amountFormatted} dari {$jenis_name} ditolak. Alasan: {$reason}";
+    $message = "Pencairan sebesar Rp {$amountFormatted} dari Tabungan {$jenis_name} ditolak, Silahkan hubungi admin untuk informasi lebih lanjut. Alasan: {$reason}";
 
     $data = json_encode([
         'tabungan_keluar_id' => $tab_keluar_id,

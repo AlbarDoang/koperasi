@@ -83,7 +83,7 @@ while (true) {
 	while ($row = mysqli_fetch_assoc($res)) {
 		$processed++;
 		// Extract commonly used id fields safely
-		$id = $row['id'] ?? ($row['id_pengguna'] ?? ($row['id_anggota'] ?? null));
+		$id = $row['id'] ?? ($row['id_pengguna'] ?? ($row['id_pengguna'] ?? null));
 		$id_tabungan_val = $row['id_tabungan'] ?? ($row['nis'] ?? ($row['id_tabungan_raw'] ?? ''));
 		$saldo_db = intval($row['saldo'] ?? ($row['saldo_db'] ?? 0));
 
@@ -125,8 +125,8 @@ while (true) {
 			$check_tabungan = mysqli_query($conn, "SHOW TABLES LIKE 'tabungan'");
 			if ($check_tabungan && mysqli_num_rows($check_tabungan) > 0) {
 				$sql_tabungan = "SELECT COALESCE(SUM(CASE WHEN jenis='masuk' THEN jumlah ELSE 0 END), 0) as total_masuk, COALESCE(SUM(CASE WHEN jenis='keluar' THEN jumlah ELSE 0 END), 0) as total_keluar FROM tabungan WHERE ";
-				if (!empty($row['id_anggota'])) {
-					$sql_tabungan .= "id_anggota='" . mysqli_real_escape_string($conn, $row['id_anggota']) . "'";
+				if (!empty($row['id_pengguna'])) {
+					$sql_tabungan .= "id_pengguna='" . mysqli_real_escape_string($conn, $row['id_pengguna']) . "'";
 				} else if (!empty($row['id'])) {
 					$check_idPengguna = mysqli_query($conn, "SHOW COLUMNS FROM tabungan LIKE 'id_pengguna'");
 					if ($check_idPengguna && mysqli_num_rows($check_idPengguna) > 0) {
@@ -187,4 +187,5 @@ while (true) {
 $summary = ['status' => true, 'processed' => $processed, 'changed' => $changed, 'errors' => $errors, 'rows' => $rows];
 echo json_encode($summary, JSON_PRETTY_PRINT);
 exit();
+
 
