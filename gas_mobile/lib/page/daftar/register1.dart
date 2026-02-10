@@ -293,7 +293,7 @@ class _Register1PageState extends State<Register1Page> {
 
           // ignore: avoid_print
           print('✅✅✅ REGISTER TAHAP 1 SUKSES! Akan tampil notifikasi HIJAU');
-          CustomToast.success(context, 'Pendaftaran tahap 1 berhasil');
+          CustomToast.success(context, 'Pendaftaran Berhasil');
 
           // Navigate to tahap 2 and pass reg1Data
           if (mounted) {

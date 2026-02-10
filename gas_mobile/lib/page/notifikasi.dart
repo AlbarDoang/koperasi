@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -219,11 +220,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      Get.snackbar(
-        'Error',
-        'Gagal memuat notifikasi',
-        snackPosition: SnackPosition.TOP,
-      );
+      NotificationService.showError('Gagal memuat notifikasi');
     }
   }
 
@@ -278,11 +275,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         }
       } catch (_) {}
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Gagal mengubah status',
-        snackPosition: SnackPosition.TOP,
-      );
+      NotificationService.showError('Gagal mengubah status');
     }
   }
 

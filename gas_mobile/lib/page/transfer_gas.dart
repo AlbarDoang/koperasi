@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/page/transfer_to_friend.dart';
@@ -426,14 +427,7 @@ class _TransferGasPageState extends State<TransferGasPage> {
                       TextButton.icon(
                         onPressed: () async {
                           // Placeholder: contact sync not yet implemented
-                          Get.snackbar(
-                            'Info',
-                            'Sinkronisasi kontak akan datang di pembaruan berikutnya.',
-                            backgroundColor: Colors.orange.shade700,
-                            colorText: Colors.white,
-                            snackPosition: SnackPosition.TOP,
-                            margin: const EdgeInsets.all(16),
-                          );
+                          NotificationService.showInfo('Sinkronisasi kontak akan datang di pembaruan berikutnya.');
                         },
                         icon: const Icon(Icons.sync, size: 18),
                         label: const Text('Sinkronkan'),
@@ -625,13 +619,8 @@ class _TransferGasPageState extends State<TransferGasPage> {
                         final contact = _filteredContacts[index];
                         return GestureDetector(
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Memilih: ${contact['name']} - ${contact['phone']}',
-                                ),
-                                duration: const Duration(seconds: 1),
-                              ),
+                            NotificationService.showSuccess(
+                              'Memilih: ${contact['name']} - ${contact['phone']}',
                             );
                           },
                           child: Column(

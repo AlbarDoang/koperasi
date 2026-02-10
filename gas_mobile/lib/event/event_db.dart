@@ -6,7 +6,7 @@ import 'package:tabungan/model/transfer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:tabungan/config/api.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/event/event_pref.dart';
 import 'package:tabungan/utils/currency_format.dart';
 import 'package:tabungan/controller/c_user.dart';
@@ -20,21 +20,10 @@ import 'package:tabungan/login.dart';
 
 // import 'package:tabungan/widget/info.dart'; // unused
 class EventDB {
-  // Safe notification helpers: prefer CustomToast when a BuildContext is available,
-  // otherwise fall back to Get.snackbar so calls don't throw when Get.context is null.
-  static void _showSuccess(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.success(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Sukses', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        // last resort: print to console in debug mode
-        if (kDebugMode) debugPrint('SUCCESS: $message');
-      }
-    }
-  }
+  // Notification helpers – delegate to NotificationService (no context needed).
+  static void _showSuccess(String message, [BuildContext? ctx]) =>
+      NotificationService.showSuccess(message);
+
 
   // Change password (user initiated)
   static Future<bool> changePassword(
@@ -181,46 +170,14 @@ class EventDB {
     return false;
   }
 
-  static void _showError(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.error(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Error', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('ERROR: $message');
-      }
-    }
-  }
+  static void _showError(String message, [BuildContext? ctx]) =>
+      NotificationService.showError(message);
 
-  static void _showInfo(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.info(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Info', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('INFO: $message');
-      }
-    }
-  }
+  static void _showInfo(String message, [BuildContext? ctx]) =>
+      NotificationService.showInfo(message);
 
-  // Show a warning-style toast (orange) to indicate action required / attention
-  static void _showWarning(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.warning(contextToUse, message);
-    } else {
-      try {
-        // use a neutral title so snackbar doesn't look like an error
-        Get.snackbar('Perhatian', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('WARNING: $message');
-      }
-    }
-  }
+  static void _showWarning(String message, [BuildContext? ctx]) =>
+      NotificationService.showWarning(message);
 
   // Helper: safely parse JSON response and avoid FormatException
   static dynamic _parseJsonSafeFromResponse(
@@ -245,6 +202,7 @@ class EventDB {
     String nohp,
     String pass, {
     bool showSuccessToast = true,
+    BuildContext? ctx,
   }) async {
     Map<String, dynamic>? result;
     try {
@@ -294,7 +252,7 @@ class EventDB {
 
           // NOTE: Success toasts are suppressed by callers when they need a single, contextual notification
           if (showSuccessToast) {
-            _showSuccess(message ?? 'Login Berhasil');
+            _showSuccess(message ?? 'Login Berhasil', ctx);
           }
 
           result = {
@@ -303,9 +261,13 @@ class EventDB {
             'next_page': responseBody['next_page'] ?? 'dashboard',
           };
         } else {
-          _showError(
-            message ?? 'Login gagal. Pastikan nomor HP dan password benar.',
-          );
+          // Status 200 but success is false
+          // Return error result instead of showing notification
+          result = {
+            'error': true,
+            'message': message ?? 'Login gagal. Pastikan nomor HP dan password benar.',
+            'notif_type': 'error',
+          };
         }
       } else {
         // Prefer server-provided JSON message (when available) and fall back to a generic error
@@ -323,20 +285,27 @@ class EventDB {
           message =
               'Terjadi kesalahan pada server (kode ${response.statusCode}). Silakan coba lagi.';
         }
-        // Differentiate notification types: use server hint if available, else determine by status code
-        if (notifType == 'warning') {
-          _showWarning(message);
-        } else if (response.statusCode == 404) {
-          _showWarning(message);
-        } else {
-          _showError(message);
-        }
+        // Return error result instead of showing notification
+        // Let the caller (login.dart) handle showing the notification with proper context
+        result = {
+          'error': true,
+          'message': message,
+          'notif_type': notifType,
+        };
       }
     } catch (e) {
       if (e.toString().contains('timeout')) {
-        _showError('⏱️ Request timeout - Server tidak merespons');
+        result = {
+          'error': true,
+          'message': '⏱️ Request timeout - Server tidak merespons',
+          'notif_type': 'error',
+        };
       } else {
-        _showError('❌ Error: ${e.toString()}');
+        result = {
+          'error': true,
+          'message': '❌ Error: ${e.toString()}',
+          'notif_type': 'error',
+        };
       }
       if (kDebugMode) debugPrint('Error: $e');
     }

@@ -5,6 +5,52 @@ import 'package:tabungan/controller/forgot_pin_controller.dart';
 class ForgotPinResetPin extends GetView<ForgotPinController> {
   const ForgotPinResetPin({Key? key}) : super(key: key);
 
+  Widget _buildToastBanner() {
+    return Obx(() {
+      final notification = controller.toastNotification.value;
+      if (notification == null) {
+        return const SizedBox.shrink();
+      }
+
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: Material(
+          key: ValueKey('${notification.message}-${notification.color.value}'),
+          elevation: 4,
+          shadowColor: notification.color.withAlpha(60),
+          borderRadius: BorderRadius.circular(12),
+          color: notification.color,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  notification.icon ?? Icons.info_outline,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    notification.message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final RxBool isPinVisible = false.obs;
@@ -16,12 +62,14 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               const SizedBox(height: 20),
               Text(
                 'Buat PIN Baru',
@@ -141,9 +189,17 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                   ),
                 ),
               ),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
+          Positioned(
+            top: 12,
+            left: 16,
+            right: 16,
+            child: _buildToastBanner(),
+          ),
+        ],
       ),
     );
   }

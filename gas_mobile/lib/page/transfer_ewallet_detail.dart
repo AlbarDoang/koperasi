@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/page/orange_header.dart';
 
 class TransferEwalletDetailPage extends StatefulWidget {
@@ -244,14 +245,7 @@ class _TransferEwalletDetailPageState extends State<TransferEwalletDetailPage> {
             onPressed: amountVal > 0 && _phoneController.text.isNotEmpty
                 ? () {
                     // E-wallet transfer flow is not yet supported in-app; show informative notice
-                    Get.snackbar(
-                      'Info',
-                      'Metode transfer ini belum tersedia',
-                      backgroundColor: Colors.orange.shade700,
-                      colorText: Colors.white,
-                      snackPosition: SnackPosition.TOP,
-                      margin: const EdgeInsets.all(16),
-                    );
+                    NotificationService.showInfo('Metode transfer ini belum tersedia');
                   }
                 : null,
             style: ElevatedButton.styleFrom(

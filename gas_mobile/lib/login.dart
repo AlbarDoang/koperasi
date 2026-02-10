@@ -9,7 +9,7 @@ import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/event/event_pref.dart';
 import 'package:tabungan/event/event_db.dart';
 import 'package:tabungan/model/user.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/page/daftar/register1.dart';
 import 'package:tabungan/page/aktivasi/aktivasiakun.dart';
 import 'package:tabungan/page/forgot_password_page.dart';
@@ -88,11 +88,30 @@ class _LoginPageState extends State<LoginPage>
     final inputHp = _controllerNohp.text.trim();
     final inputPass = _controllerPass.text.trim();
 
-    final loginResult = await EventDB.login(inputHp, inputPass, showSuccessToast: false);
+    final loginResult = await EventDB.login(
+      inputHp,
+      inputPass,
+      showSuccessToast: false,
+      ctx: context,
+    );
 
     if (!mounted) return;
 
     setState(() => _isLoading = false);
+
+    // Handle error response from EventDB.login()
+    if (loginResult != null && loginResult['error'] == true) {
+      final message = loginResult['message']?.toString() ?? 'Login gagal';
+      final notifType = loginResult['notif_type']?.toString();
+
+      // Show error notification based on type
+      if (notifType == 'warning') {
+        NotificationService.showWarning(message);
+      } else {
+        NotificationService.showError(message);
+      }
+      return;
+    }
 
     if (loginResult != null && loginResult['user'] != null) {
       final user = loginResult['user'] as User;
@@ -103,18 +122,20 @@ class _LoginPageState extends State<LoginPage>
 
       if (needsPin) {
         // PIN transaksi BELUM diset: notifikasi formal lalu arahkan ke Set PIN, lalu hentikan eksekusi
-        CustomToast.success(
-          context,
-          'Login berhasil. Silakan atur PIN transaksi untuk keamanan akun Anda.',
-        );
+        NotificationService.showSuccess('Login berhasil. Silakan atur PIN transaksi untuk keamanan akun Anda.');
         Get.offAllNamed('/setpin');
         return;
       } else {
         // PIN transaksi SUDAH diset: notifikasi formal lalu arahkan ke Dashboard, lalu hentikan eksekusi
-        CustomToast.success(context, 'Login berhasil. Selamat datang kembali.');
+        NotificationService.showSuccess('Login berhasil. Selamat datang kembali.');
         Get.offAll(() => const Dashboard());
         return;
       }
+    } else {
+      // Unexpected: no error flag and no user data
+      NotificationService.showError(
+        'Login gagal. Nomor ponsel mungkin belum terdaftar atau password salah. Silakan coba lagi.',
+      );
     }
   }
 

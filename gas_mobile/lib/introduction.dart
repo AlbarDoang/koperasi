@@ -16,15 +16,15 @@ class _IntroductionPageState extends State<IntroductionPage> {
 
   final List<Map<String, dynamic>> pages = [
     {
-      "title": "Daftar Akun Tabungan",
+      "title": "Daftar Akun Koperasi GAS",
       "body":
-          "Membuat akun Koperasi GAS bisa melalui https://tabungan.boash.sch.id/",
+          "Membuat akun Koperasi GAS bisa dengan mendatangi kantor Koperasi GAS atau lewat Aplikasi Koperasi GAS ini.",
       "image": 'assets/slide1.png',
     },
     {
       "title": "Menabung Menjadi Mudah",
       "body":
-          "Menabung dengan mendatangi Ruangan Koperasi GAS untuk bertemu dengan Petugas",
+          "Menabung dengan mendatangi kantor Koperasi GAS untuk bertemu dengan petugas",
       "image": 'assets/slide2.png',
     },
     {
@@ -36,7 +36,7 @@ class _IntroductionPageState extends State<IntroductionPage> {
     {
       "title": "Bisa Transfer Saldo",
       "body":
-          "Transfer Saldo Tabungan ke sesama pengguna Tabungan GAS dengan mudah dan cepat",
+          "Transfer Saldo Tabungan ke sesama pengguna Koperasi GAS dengan mudah dan cepat",
       "image": 'assets/slide4.png',
     },
   ];

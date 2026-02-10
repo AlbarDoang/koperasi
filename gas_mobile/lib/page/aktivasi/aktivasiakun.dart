@@ -13,7 +13,7 @@ import 'package:tabungan/model/user.dart';
 import 'package:tabungan/page/aktivasi/setpin.dart';
 import 'package:tabungan/page/dashboard.dart';
 import 'package:tabungan/page/orange_header.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 
 class AktivasiAkunPage extends StatefulWidget {
   const AktivasiAkunPage({Key? key}) : super(key: key);
@@ -103,8 +103,13 @@ class _AktivasiAkunPageState extends State<AktivasiAkunPage>
   }
 
   void _showCustomBanner(String message, {Color color = Colors.orange}) async {
-    // Use centralized CustomToast to show a non-stacking toast.
-    CustomToast.show(context, message, baseColor: color);
+    if (color == Colors.redAccent || color == Colors.red) {
+      NotificationService.showError(message);
+    } else if (color == Colors.orange) {
+      NotificationService.showWarning(message);
+    } else {
+      NotificationService.showSuccess(message);
+    }
   }
 
   Future<void> _sendOtp() async {

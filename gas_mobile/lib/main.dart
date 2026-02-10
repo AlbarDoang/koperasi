@@ -31,6 +31,7 @@ import 'package:tabungan/page/transaction_detail_page.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:tabungan/services/network_test_service.dart';
+import 'package:tabungan/utils/app_messenger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +65,7 @@ class MyApp extends StatelessWidget {
       themeMode: themeController.isDarkMode.value
           ? ThemeMode.dark
           : ThemeMode.light,
+        scaffoldMessengerKey: appMessengerKey,
       home: const LauncherPage(),
 
       // Semua route dari file lain sudah ditambahkan di sini

@@ -18,7 +18,7 @@ import 'package:tabungan/utils/currency_format.dart';
 
 import 'package:tabungan/widget/bottom_navbar_widget.dart' as navbar;
 import 'package:tabungan/controller/notifikasi_helper.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 
 class Dashboard extends StatefulWidget {
   final String? bannerMessage;
@@ -100,7 +100,7 @@ class _DashboardState extends State<Dashboard> {
       final msg = widget.bannerMessage!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_bannerShown && mounted) {
-          CustomToast.success(context, msg);
+          NotificationService.showSuccess(msg);
           setState(() {
             _bannerShown = true;
           });
@@ -377,29 +377,11 @@ class _DashboardState extends State<Dashboard> {
               MaterialPageRoute(builder: (context) => const TransferPage()),
             );
           } else if (label == 'Listrik') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Fitur Isi Listrik belum tersedia'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            NotificationService.showInfo('Fitur Isi Listrik belum tersedia');
           } else if (label == 'Isi Pulsa') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Fitur Isi Pulsa belum tersedia'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            NotificationService.showInfo('Fitur Isi Pulsa belum tersedia');
           } else if (label == 'Isi Kuota') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Fitur Isi Kuota belum tersedia'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            NotificationService.showInfo('Fitur Isi Kuota belum tersedia');
           }
         },
         child: Column(
@@ -1099,7 +1081,7 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  // Daftar Akun Tabungan section (text kiri, icon kanan)
+  // Daftar Akun Koperasi GAS section (text kiri, icon kanan)
   Widget buildDaftarAkunSection(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -1114,7 +1096,7 @@ class _DashboardState extends State<Dashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Daftar Akun Tabungan',
+                  'Daftar Akun Koperasi GAS',
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

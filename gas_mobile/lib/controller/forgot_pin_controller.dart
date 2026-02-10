@@ -1,8 +1,26 @@
 import 'package:get/get.dart';
 import 'package:tabungan/config/api.dart';
 import 'package:tabungan/config/http_client.dart' as http_client;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
+
+// Toast notification model
+class ToastNotification {
+  final String message;
+  final Color color;
+  final Duration duration;
+  final IconData? icon;
+  
+  ToastNotification({
+    required this.message,
+    this.color = const Color(0xFF4CAF50),
+    this.duration = const Duration(seconds: 3),
+    this.icon,
+  });
+}
 
 class ForgotPinController extends GetxController {
   final RxString noHp = ''.obs;
@@ -16,43 +34,18 @@ class ForgotPinController extends GetxController {
 
   final RxInt currentStep = 0.obs;
   final RxInt resendSeconds = 0.obs;
+  
+  // Toast notification observable
+  final Rx<ToastNotification?> toastNotification = Rx<ToastNotification?>(null);
+  
+  // Dialog state - untuk ditampilkan dari widget
+  final RxString errorMessage = ''.obs;
+  final RxString successMessage = ''.obs;
+  final RxBool showErrorDialog = false.obs;
+  final RxBool showSuccessDialog = false.obs;
+  
   Timer? _resendTimer;
-
-  Future<void> requestOTP() async {
-    final phoneNumber = noHp.value.trim();
-
-    if (phoneNumber.isEmpty) {
-      Get.snackbar('Error', 'Nomor HP wajib diisi', snackPosition: SnackPosition.BOTTOM);
-      return;
-    }
-
-    isLoadingRequestOtp.value = true;
-
-    try {
-      final response = await http_client.HttpHelper.post(
-        Uri.parse(Api.forgotPassword),
-        body: {'no_hp': phoneNumber},
-      );
-
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      final isSuccess = payload['status'] == true;
-      final message = payload['message']?.toString() ?? 'Tidak ada pesan';
-
-      if (isSuccess) {
-        Get.snackbar('Sukses', message, snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 3));
-        currentStep.value = 1;
-        _startResendTimer(60);
-      } else {
-        Get.snackbar('Error', message, snackPosition: SnackPosition.BOTTOM);
-      }
-    } on TimeoutException {
-      Get.snackbar('Error', 'Request timeout - Server tidak merespons', snackPosition: SnackPosition.BOTTOM);
-    } catch (e) {
-      Get.snackbar('Error', 'Gagal meminta OTP: $e', snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      isLoadingRequestOtp.value = false;
-    }
-  }
+  Timer? _toastTimer;
 
   void _startResendTimer(int seconds) {
     _resendTimer?.cancel();
@@ -73,28 +66,166 @@ class ForgotPinController extends GetxController {
     resendSeconds.value = 0;
   }
 
+  // Helper to show error dialog - set state yang dialamati widget
+  void _showErrorDialog(String message) {
+    if (kDebugMode) {
+      print('\n${'='*80}');
+      print('❌ [_showErrorDialog] SETTING ERROR STATE');
+      print('   Message: $message');
+      print('   Dialog akan ditampilkan dari widget');
+      print('${'='*80}\n');
+    }
+    errorMessage.value = message;
+    showErrorDialog.value = true;
+  }
+
+  // Helper to show success dialog - set state yang dialamati widget
+  void _showSuccessDialog(String message) {
+    if (kDebugMode) {
+      print('\n${'='*80}');
+      print('✅ [_showSuccessDialog] SETTING SUCCESS STATE');
+      print('   Message: $message');
+      print('   Dialog akan ditampilkan dari widget');
+      print('${'='*80}\n');
+    }
+    successMessage.value = message;
+    showSuccessDialog.value = true;
+  }
+
+  // Helper to show toast notification (emit event + global NotificationService)
+  void _showToast(String message, {Color color = const Color(0xFF4CAF50), Duration duration = const Duration(seconds: 3)}) {
+    if (kDebugMode) {
+      print('📢 [Controller] Toast: "$message" (color: $color, duration: ${duration.inSeconds}s)');
+    }
+    _toastTimer?.cancel();
+    final notification = ToastNotification(
+      message: message,
+      color: color,
+      duration: duration,
+    );
+    // Emit event untuk page listener
+    toastNotification.value = notification;
+    _toastTimer = Timer(duration, () {
+      if (toastNotification.value == notification) {
+        toastNotification.value = null;
+      }
+    });
+    // Show via global NotificationService (no context / overlay needed)
+    if (color == Colors.red || color == Colors.redAccent) {
+      NotificationService.showError(message);
+    } else if (color == Colors.orange) {
+      NotificationService.showWarning(message);
+    } else {
+      NotificationService.showSuccess(message);
+    }
+  }
+
+  Future<void> requestOTP() async {
+    final phoneNumber = noHp.value.trim();
+
+    if (phoneNumber.isEmpty) {
+      _showToast(
+        'Nomor HP wajib diisi',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    isLoadingRequestOtp.value = true;
+
+    try {
+      if (kDebugMode) print('🔄 [requestOTP] START - Phone: $phoneNumber');
+
+      final response = await http_client.HttpHelper.post(
+        Uri.parse(Api.forgotPassword),
+        body: {'no_hp': phoneNumber},
+      );
+
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final isSuccess = payload['status'] == true || payload['success'] == true;
+      final message = payload['message']?.toString() ?? 'Tidak ada pesan';
+
+      if (kDebugMode) {
+        print('✅ [requestOTP] Response: Success=$isSuccess, Message=$message');
+      }
+
+      if (isSuccess) {
+        _showToast(
+          message,
+          color: const Color(0xFF4CAF50),
+          duration: const Duration(seconds: 3),
+        );
+        currentStep.value = 1;
+        _startResendTimer(60);
+      } else {
+        _showToast(
+          message,
+          color: Colors.red,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } on TimeoutException {
+      if (kDebugMode) print('⏱️ [requestOTP] TIMEOUT');
+      _showToast(
+        'Request timeout - Server tidak merespons',
+        color: Colors.red,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      if (kDebugMode) print('❌ [requestOTP] ERROR: $e');
+      _showToast(
+        'Gagal meminta OTP: $e',
+        color: Colors.red,
+        duration: const Duration(seconds: 3),
+      );
+    } finally {
+      isLoadingRequestOtp.value = false;
+    }
+  }
+
   Future<void> verifyOTP() async {
     final phoneNumber = noHp.value.trim();
     final otpCode = otp.value.trim();
 
     if (otpCode.isEmpty) {
-      Get.snackbar('Error', 'Kode OTP wajib diisi', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'Kode OTP wajib diisi',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
 
     if (otpCode.length != 6) {
-      Get.snackbar('Error', 'OTP harus 6 digit', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'OTP harus 6 digit',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
 
     if (phoneNumber.isEmpty) {
-      Get.snackbar('Error', 'Nomor HP tidak ditemukan', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'Nomor HP tidak ditemukan',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
 
     isLoadingVerifyOtp.value = true;
 
     try {
+      if (kDebugMode) {
+        print('\n${'='*80}');
+        print('🔄 [verifyOTP] STARTING OTP VERIFICATION');
+        print('   Phone: $phoneNumber');
+        print('   OTP Code: $otpCode');
+        print('   Endpoint: ${Api.verifyOtpReset}');
+      }
+
       final response = await http_client.HttpHelper.post(
         Uri.parse(Api.verifyOtpReset),
         body: {
@@ -103,20 +234,62 @@ class ForgotPinController extends GetxController {
         },
       );
 
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      final isSuccess = payload['status'] == true;
+      if (kDebugMode) {
+        print('📥 [verifyOTP] RESPONSE RECEIVED');
+        print('   Status Code: ${response.statusCode}');
+        print('   Body: ${response.body}');
+      }
+
+      // Parse response
+      Map<String, dynamic> payload;
+      try {
+        payload = jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (parseError) {
+        if (kDebugMode) {
+          print('❌ [verifyOTP] JSON PARSE ERROR: $parseError');
+          print('   Raw Body: ${response.body}');
+        }
+        _showErrorDialog('Respons server tidak valid. Silakan coba lagi.');
+        return;
+      }
+
+      final isSuccess = payload['status'] == true || payload['success'] == true;
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
+      if (kDebugMode) {
+        print('✅ [verifyOTP] PARSED RESPONSE');
+        print('   Status/Success: $isSuccess');
+        print('   Message: $message');
+        print('   Full Payload: $payload');
+        print('${'='*80}\n');
+      }
+
       if (isSuccess) {
-        Get.snackbar('Sukses', 'OTP terverifikasi', snackPosition: SnackPosition.BOTTOM);
-        currentStep.value = 2;
+        if (kDebugMode) {
+          print('✅ [verifyOTP] OTP SUCCESS - Setting dialog state');
+        }
+        _showSuccessDialog('Kode OTP yang anda masukan benar');
       } else {
-        Get.snackbar('Error', message, snackPosition: SnackPosition.BOTTOM);
+        if (kDebugMode) {
+          print('❌ [verifyOTP] OTP VERIFICATION FAILED');
+          print('   Setting error dialog with message: $message');
+        }
+        _showErrorDialog(message);
       }
     } on TimeoutException {
-      Get.snackbar('Error', 'Request timeout - Server tidak merespons', snackPosition: SnackPosition.BOTTOM);
+      if (kDebugMode) print('⏱️ [verifyOTP] TIMEOUT');
+      _showToast(
+        'Request timeout - Server tidak merespons',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Gagal verifikasi OTP: $e', snackPosition: SnackPosition.BOTTOM);
+      if (kDebugMode) print('❌ [verifyOTP] ERROR: $e');
+      _showToast(
+        'Gagal verifikasi OTP: $e',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
     } finally {
       isLoadingVerifyOtp.value = false;
     }
@@ -129,19 +302,28 @@ class ForgotPinController extends GetxController {
     final confirmPin = pinKonfirmasi.value.trim();
 
     if (phoneNumber.isEmpty || otpCode.isEmpty || newPin.isEmpty || confirmPin.isEmpty) {
-      Get.snackbar('Error', 'Semua field wajib diisi', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'Semua field wajib diisi',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
 
-
     if (!RegExp(r'^\d{6}$').hasMatch(newPin)) {
-      Get.snackbar('Error', 'PIN harus 6 digit angka', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'PIN harus 6 digit angka',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
 
     isLoadingResetPin.value = true;
 
     try {
+      if (kDebugMode) print('\n🔄 [resetPin] START');
+
       final response = await http_client.HttpHelper.post(
         Uri.parse(Api.resetPin),
         body: {
@@ -153,20 +335,41 @@ class ForgotPinController extends GetxController {
       );
 
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      final isSuccess = payload['status'] == true;
+      final isSuccess = payload['status'] == true || payload['success'] == true;
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
+      if (kDebugMode) {
+        print('✅ [resetPin] Response: Success=$isSuccess');
+      }
+
       if (isSuccess) {
-        Get.snackbar('Sukses', message, snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 3));
-        await Future.delayed(const Duration(seconds: 2));
+        _showToast(
+          message,
+          color: const Color(0xFF4CAF50),
+          duration: const Duration(seconds: 3),
+        );
+        await Future.delayed(const Duration(seconds: 1));
         Get.offAllNamed('/login');
       } else {
-        Get.snackbar('Error', message, snackPosition: SnackPosition.BOTTOM);
+        _showToast(
+          message,
+          color: Colors.red,
+          duration: const Duration(seconds: 2),
+        );
       }
     } on TimeoutException {
-      Get.snackbar('Error', 'Request timeout - Server tidak merespons', snackPosition: SnackPosition.BOTTOM);
+      _showToast(
+        'Request timeout - Server tidak merespons',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Gagal reset PIN: $e', snackPosition: SnackPosition.BOTTOM);
+      if (kDebugMode) print('❌ [resetPin] ERROR: $e');
+      _showToast(
+        'Gagal reset PIN: $e',
+        color: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
     } finally {
       isLoadingResetPin.value = false;
     }
@@ -184,6 +387,7 @@ class ForgotPinController extends GetxController {
   @override
   void onClose() {
     _stopResendTimer();
+    _toastTimer?.cancel();
     super.onClose();
   }
 }

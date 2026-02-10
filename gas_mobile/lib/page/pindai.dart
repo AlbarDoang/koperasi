@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -56,9 +57,7 @@ class _PindaiPageState extends State<PindaiPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!kReleaseMode && !_apiInfoShown) {
         final base = Api.baseUrl;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('API base: $base'), duration: Duration(seconds: 4)),
-        );
+        NotificationService.showInfo('API base: $base');
         _apiInfoShown = true;
       }
     });
@@ -121,9 +120,7 @@ class _PindaiPageState extends State<PindaiPage> {
       // Get current authenticated user (payer)
       final currentUser = await EventPref.getUser();
       if (currentUser == null || currentUser.id == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User tidak ditemukan. Silakan login ulang.')),
-        );
+        NotificationService.showError('User tidak ditemukan. Silakan login ulang.');
         return;
       }
 
@@ -367,9 +364,7 @@ class _PindaiPageState extends State<PindaiPage> {
                   await Api.setOverride(selected == 'auto' ? Api.overrideAuto : selected);
                   if (mounted) {
                     Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('API base set to: ${Api.baseUrl}')),
-                    );
+                    NotificationService.showSuccess('API base set to: ${Api.baseUrl}');
                     setState(() {});
                   }
                 },
@@ -523,11 +518,7 @@ class _PindaiPageState extends State<PindaiPage> {
                       // Note: decoding QR from images via `qr_code_tools` was removed.
                       // To avoid using deprecated plugins we no longer decode selected
                       // images here. Please use the camera scanner to scan QR codes.
-                      Get.snackbar(
-                        'Info',
-                        'Pilih gambar tidak didukung. Gunakan kamera untuk memindai QR.',
-                        snackPosition: SnackPosition.BOTTOM,
-                      );
+                      NotificationService.showInfo('Pilih gambar tidak didukung. Gunakan kamera untuk memindai QR.');
                     },
                   ),
                   // Removed central orange button — scanner membaca otomatis

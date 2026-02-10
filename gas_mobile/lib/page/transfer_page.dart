@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/event/event_db.dart';
 import 'package:tabungan/page/orange_header.dart';
@@ -51,14 +52,7 @@ class _TransferPageState extends State<TransferPage> {
   void _onSelectOption(String key) {
     // For banks / e-wallet we show an informational notice until backend is ready
     if (key == 'banks' || key == 'ewallet') {
-      Get.snackbar(
-        'Info',
-        'Metode transfer ini belum tersedia',
-        backgroundColor: Colors.orange.shade700,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-      );
+      NotificationService.showInfo('Metode transfer ini belum tersedia');
       return;
     }
 

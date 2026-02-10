@@ -26,7 +26,7 @@ class TestToastPage extends StatelessWidget {
             // Test SUCCESS (HIJAU)
             ElevatedButton(
               onPressed: () {
-                CustomToast.success(context, 'Pendaftaran tahap 1 berhasil');
+                CustomToast.success(context, 'Pendaftaran Berhasil');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),

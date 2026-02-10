@@ -154,7 +154,7 @@ try {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - RESET_PIN_SUCCESS: no_hp=' . $no_hp . ' user_id=' . $user['id'] . PHP_EOL, FILE_APPEND);
 
     http_response_code(200);
-    echo json_encode(array('status' => true, 'message' => 'PIN berhasil direset. Silakan login dan gunakan PIN baru Anda.'));
+    echo json_encode(array('success' => true, 'status' => true, 'message' => 'PIN berhasil direset. Silakan login dan gunakan PIN baru Anda.'));
 
 } catch (Exception $e) {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - RESET_PIN_ERROR: ' . $e->getMessage() . PHP_EOL, FILE_APPEND);

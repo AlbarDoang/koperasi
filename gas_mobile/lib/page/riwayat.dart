@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
@@ -845,22 +846,7 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
               );
               setState(() {});
               await _saveAll(items);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Transaksi dihapus'),
-                  action: SnackBarAction(
-                    label: 'Undo',
-                    onPressed: () async {
-                      final insertIdx = originalIndex == -1
-                          ? index
-                          : originalIndex;
-                      items.insert(insertIdx, removed);
-                      await _saveAll(items);
-                      setState(() {});
-                    },
-                  ),
-                ),
-              );
+              NotificationService.showSuccess('Transaksi dihapus');
               return true;
             }
             return false;

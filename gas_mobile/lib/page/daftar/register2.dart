@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:tabungan/login.dart';
 import 'package:tabungan/page/orange_header.dart';
 
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:tabungan/config/api.dart';
@@ -64,12 +64,20 @@ class _Register2PageState extends State<Register2Page>
   }
 
   void _showCustomBanner(String message) {
-    // Display success/error toast based on message content
-    // Success message is determined by checking response status
-    if (message.toLowerCase().contains('berhasil')) {
-      CustomToast.success(context, message);
-    } else {
-      CustomToast.error(context, message);
+    // Display success/error notification menggunakan NotificationService
+    final isSuccess = message.toLowerCase().contains('berhasil');
+    
+    if (kDebugMode) {
+      print('🎯 _showCustomBanner CALLED: isSuccess=$isSuccess');
+      print('   Message: $message');
+    }
+    
+    if (mounted) {
+      if (isSuccess) {
+        NotificationService.showSuccess(message);
+      } else {
+        NotificationService.showError(message);
+      }
     }
   }
 
@@ -205,12 +213,16 @@ class _Register2PageState extends State<Register2Page>
 
   // Kirim data ke API register-tahap2 (upload foto KTP & selfie)
   Future<void> _validateAndNext() async {
+    if (kDebugMode) print('🚀 _validateAndNext() STARTED');
+    
     if (_fotoKTP == null) {
+      if (kDebugMode) print('   ❌ Foto KTP null');
       _showCustomBanner('Foto KTP wajib diunggah!');
       return;
     }
 
     if (_fotoSelfie == null) {
+      if (kDebugMode) print('   ❌ Foto Selfie null');
       _showCustomBanner('Foto selfie wajib diunggah!');
       return;
     }
@@ -221,37 +233,57 @@ class _Register2PageState extends State<Register2Page>
         reg1Data['pengguna_id']?.toString();
 
     if (idPengguna == null || idPengguna.isEmpty) {
+      if (kDebugMode) print('   ❌ ID Pengguna null/empty');
       _showCustomBanner(
         'ID pengguna tidak ditemukan. Silakan kembali ke tahap sebelumnya.',
       );
       return;
     }
 
+    if (kDebugMode) print('   ✅ Validasi lokal passed, ID: $idPengguna');
     if (mounted) setState(() => _isSubmitting = true);
 
     try {
+      if (kDebugMode) print('   📤 Upload dimulai...');
+      
       final uploadSuccess = await uploadAndSave(
         fotoKTP: _fotoKTP!,
         fotoSelfie: _fotoSelfie!,
         idPengguna: idPengguna,
       );
 
+      if (kDebugMode) print('   📥 Upload selesai, success=$uploadSuccess');
+      
       if (!uploadSuccess) {
+        if (kDebugMode) print('   ❌ Upload failed');
         if (mounted) setState(() => _isSubmitting = false);
         return;
       }
 
+      if (kDebugMode) print('   ✅ Upload SUCCESS! Menampilkan notifikasi...');
+      
       if (mounted) {
-        _showCustomBanner('Verifikasi identitas berhasil, silahkan lakukan aktivasi pada akun anda');
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginPage()),
-            );
-          }
-        });
+        final message = 'Verifikasi indentitas berhasil, silahkan aktivasi akun anda';
+        _showCustomBanner(message);
+        
+        // CustomToast default duration = 2s, jadi tunggu minimal 200ms render + 2s display
+        if (kDebugMode) print('   ⏳ Waiting 200ms untuk overlay render...');
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        if (kDebugMode) print('   ⏳ Waiting 2s untuk toast visible...');
+        await Future.delayed(const Duration(seconds: 2));
+        
+        if (kDebugMode) print('   🔀 Navigate ke LoginPage...');
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        }
       }
+    } catch (e) {
+      if (kDebugMode) print('   💥 Exception in _validateAndNext: $e');
+      if (mounted) setState(() => _isSubmitting = false);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
