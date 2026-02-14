@@ -1,31 +1,19 @@
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tabungan/config/api.dart';
 import 'package:tabungan/config/http_client.dart' as http_client;
+import 'package:tabungan/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
 
-// Helper to show top-styled notifications consistently
-void _showSuccessMessage(String message) {
-  Get.snackbar(
-    'Sukses',
-    message,
-    snackPosition: SnackPosition.TOP,
-    backgroundColor: const Color(0xFF4CAF50),
-    colorText: Colors.white,
-    duration: const Duration(seconds: 2),
-  );
+// Helper to show top-styled notifications safely
+Future<void> _showSuccessMessage(String message, {Duration duration = const Duration(seconds: 2)}) async {
+  NotificationService.showSuccess(message);
 }
 
-void _showErrorMessage(String message) {
-  Get.snackbar(
-    'Error',
-    message,
-    snackPosition: SnackPosition.TOP,
-    backgroundColor: Colors.redAccent,
-    colorText: Colors.white,
-    duration: const Duration(seconds: 2),
-  );
+Future<void> _showErrorMessage(String message, {Duration duration = const Duration(seconds: 2)}) async {
+  NotificationService.showError(message);
 }
 
 class ForgotPasswordController extends GetxController {
@@ -48,13 +36,17 @@ class ForgotPasswordController extends GetxController {
     final phoneNumber = noHp.value.trim();
     
     if (phoneNumber.isEmpty) {
-      _showErrorMessage('Nomor HP wajib diisi');
+      await _showErrorMessage('Nomor HP wajib diisi');
       return;
     }
 
     isLoadingForgotPassword.value = true;
 
     try {
+      if (kDebugMode) {
+        print('📞 Requesting password reset OTP...');
+      }
+      
       final response = await http_client.HttpHelper.post(
         Uri.parse('${Api.baseUrl}/forgot_password.php'),
         body: {'no_hp': phoneNumber},
@@ -65,19 +57,33 @@ class ForgotPasswordController extends GetxController {
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
       if (isSuccess) {
-        _showSuccessMessage(message);
+        if (kDebugMode) {
+          print('✅ Password reset OTP requested successfully');
+          print('   Message: $message');
+        }
+        
+        await _showSuccessMessage(message, duration: const Duration(seconds: 3));
         currentStep.value = 1;
         // start resend countdown (60 seconds)
         _startResendTimer(60);
-        // start OTP validity countdown (120 seconds / 2 minutes)
-        _startOtpValidityTimer(120);
+        // start OTP validity countdown (60 seconds / 1 menit)
+        _startOtpValidityTimer(60);
       } else {
-        _showErrorMessage(message);
+        if (kDebugMode) {
+          print('❌ Password reset OTP request failed');
+          print('   Message: $message');
+        }
+        
+        await _showErrorMessage(message, duration: const Duration(seconds: 3));
       }
     } on TimeoutException {
-      _showErrorMessage('Request timeout - Server tidak merespons');
+      if (kDebugMode) print('⏱️ OTP request timeout');
+      
+      await _showErrorMessage('Request timeout - Server tidak merespons', duration: const Duration(seconds: 3));
     } catch (e) {
-      _showErrorMessage('Gagal meminta OTP: $e');
+      if (kDebugMode) print('💥 OTP request exception: $e');
+      
+      await _showErrorMessage('Gagal meminta OTP: $e', duration: const Duration(seconds: 3));
     } finally {
       isLoadingForgotPassword.value = false;
     }
@@ -109,6 +115,7 @@ class ForgotPasswordController extends GetxController {
       if (otpValiditySeconds.value <= 0) {
         timer.cancel();
         otpValiditySeconds.value = 0;
+        // Fire-and-forget: show error notification without awaiting
         _showErrorMessage('Kode OTP telah kadaluarsa. Silakan minta OTP baru.');
         // Reset back to step 0 (request OTP page)
         currentStep.value = 0;
@@ -129,24 +136,34 @@ class ForgotPasswordController extends GetxController {
     final phoneNumber = noHp.value.trim();
     final otpCode = otp.value.trim();
 
+    // Client-side check: OTP sudah expired
+    if (otpValiditySeconds.value <= 0) {
+      await _showErrorMessage('Kode OTP yang anda masukkan tidak valid');
+      return;
+    }
+
     if (otpCode.isEmpty) {
-      _showErrorMessage('Kode OTP wajib diisi');
+      await _showErrorMessage('Kode OTP wajib diisi');
       return;
     }
 
     if (otpCode.length != 6) {
-      _showErrorMessage('OTP harus 6 digit');
+      await _showErrorMessage('OTP harus 6 digit');
       return;
     }
 
     if (phoneNumber.isEmpty) {
-      _showErrorMessage('Nomor HP tidak ditemukan');
+      await _showErrorMessage('Nomor HP tidak ditemukan');
       return;
     }
 
     isLoadingVerifyOtp.value = true;
 
     try {
+      if (kDebugMode) {
+        print('🔐 Verifying password reset OTP...');
+      }
+      
       // Call backend to verify OTP without resetting password yet
       final response = await http_client.HttpHelper.post(
         Uri.parse(Api.verifyOtpReset),
@@ -161,29 +178,39 @@ class ForgotPasswordController extends GetxController {
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
       if (isSuccess) {
+        if (kDebugMode) {
+          print('✅ Password reset OTP verified successfully');
+          print('   Message: $message');
+        }
+        
         // Stop OTP validity timer immediately on success
         _stopOtpValidityTimer();
         
-        // Show success message using reliable Get.snackbar (overlay-safe)
-        Get.snackbar(
-          'Sukses',
+        // Show success message
+        await _showSuccessMessage(
           'Kode OTP berhasil diverifikasi. Silakan buat password baru Anda.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFF4CAF50),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         );
         
-        // Navigate after delay to let snackbar show
+        // Navigate after delay
         await Future.delayed(const Duration(milliseconds: 500));
         currentStep.value = 2;
       } else {
-        _showErrorMessage(message);
+        if (kDebugMode) {
+          print('❌ Password reset OTP verification failed');
+          print('   Message: $message');
+        }
+        
+        await _showErrorMessage(message, duration: const Duration(seconds: 3));
       }
     } on TimeoutException {
-      _showErrorMessage('Request timeout - Server tidak merespons');
+      if (kDebugMode) print('⏱️ OTP verification timeout');
+      
+      await _showErrorMessage('Request timeout - Server tidak merespons', duration: const Duration(seconds: 3));
     } catch (e) {
-      _showErrorMessage('Gagal verifikasi OTP: $e');
+      if (kDebugMode) print('💥 OTP verification exception: $e');
+      
+      await _showErrorMessage('Gagal verifikasi OTP: $e', duration: const Duration(seconds: 3));
     } finally {
       isLoadingVerifyOtp.value = false;
     }
@@ -196,23 +223,27 @@ class ForgotPasswordController extends GetxController {
     final confirmPassword = passwordKonfirmasi.value.trim();
 
     if (phoneNumber.isEmpty || otpCode.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
-      _showErrorMessage('Semua field wajib diisi');
+      await _showErrorMessage('Semua field wajib diisi');
       return;
     }
 
     if (newPassword.length < 6) {
-      _showErrorMessage('Password minimal 6 karakter');
+      await _showErrorMessage('Password minimal 6 karakter');
       return;
     }
 
     if (newPassword != confirmPassword) {
-      _showErrorMessage('Password tidak cocok');
+      await _showErrorMessage('Password tidak cocok');
       return;
     }
 
     isLoadingResetPassword.value = true;
 
     try {
+      if (kDebugMode) {
+        print('📝 Resetting password...');
+      }
+      
       final response = await http_client.HttpHelper.post(
         Uri.parse(Api.resetPassword),
         body: {
@@ -227,24 +258,60 @@ class ForgotPasswordController extends GetxController {
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
       if (isSuccess) {
-        // Show success message using reliable Get.snackbar
-        Get.snackbar(
-          'Sukses',
-          '✅ Password berhasil direset! Silakan login dengan password baru Anda.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: const Color(0xFF4CAF50),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
+        if (kDebugMode) {
+          print('✅ Password reset SUCCESS');
+          print('   Message: $message');
+          print('   Showing notification...');
+        }
+        
+        // Transform message for better UX
+        final displayMessage = message.contains('Password') 
+            ? message.replaceAll('Password', 'Kata Sandi')
+            : (message.contains('password') 
+                ? message.replaceAll('password', 'Kata Sandi')
+                : message);
+        
+        // Show success message with extended duration
+        await _showSuccessMessage(
+          displayMessage,
+          duration: const Duration(seconds: 5),
         );
-        await Future.delayed(const Duration(seconds: 2));
+        
+        if (kDebugMode) {
+          print('   ⏳ Waiting 5.5 seconds for notification to display...');
+        }
+        
+        // Wait for notification to fully display before navigating
+        // Total: 300ms animation + 5s display + 200ms buffer = 5.5 seconds
+        await Future.delayed(const Duration(milliseconds: 5500));
+        
+        if (kDebugMode) {
+          print('   📱 Navigating to login page...');
+        }
+        
+        // Clear form before navigating
+        resetForm();
+        
+        // Use offAllNamed for hard reset of navigation stack
         Get.offAllNamed('/login');
       } else {
-        _showErrorMessage(message);
+        if (kDebugMode) {
+          print('❌ Password reset FAILED');
+          print('   Message: $message');
+        }
+        
+        await _showErrorMessage(message, duration: const Duration(seconds: 3));
       }
     } on TimeoutException {
-      _showErrorMessage('Request timeout - Server tidak merespons');
+      if (kDebugMode) print('⏱️ Password reset timeout');
+      
+      await _showErrorMessage('Request timeout - Server tidak merespons', duration: const Duration(seconds: 3));
     } catch (e) {
-      _showErrorMessage('Gagal reset password: $e');
+      if (kDebugMode) {
+        print('💥 Password reset exception: $e');
+      }
+      
+      await _showErrorMessage('Gagal reset password: $e', duration: const Duration(seconds: 3));
     } finally {
       isLoadingResetPassword.value = false;
     }

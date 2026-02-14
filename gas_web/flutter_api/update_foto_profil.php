@@ -11,7 +11,7 @@
  * 
  * Parameters:
  *   - id_pengguna: ID pengguna di tabel pengguna (required)
- *   - foto_profil: File gambar (required, max 500MB, format: JPG/JPEG/PNG)
+ *   - foto_profil: File gambar (required, max 10MB, format: JPG/JPEG/PNG)
  * 
  * Response Success (200):
  * {
@@ -37,6 +37,11 @@
 require_once dirname(__DIR__) . '/config/database.php';
 // Sertakan konfigurasi storage (PROFILE_STORAGE constants)
 require_once __DIR__ . '/storage_config.php';
+
+// Pastikan PHP mengizinkan upload file hingga 10MB
+@ini_set('upload_max_filesize', '12M');
+@ini_set('post_max_size', '14M');
+@ini_set('max_execution_time', '120');
 
 // Set header untuk JSON response
 header('Content-Type: application/json; charset=utf-8');
@@ -101,13 +106,13 @@ if ($file_error !== UPLOAD_ERR_OK) {
     exit();
 }
 
-// Validasi ukuran file maksimal 500MB (524288000 bytes)
-$max_size = 524288000; // 500MB
+// Validasi ukuran file maksimal 10MB (10485760 bytes)
+$max_size = 10 * 1024 * 1024; // 10MB
 if ($file_size > $max_size) {
     http_response_code(422);
     echo json_encode([
         'status' => false,
-        'message' => 'Ukuran file terlalu besar. Maksimal 500MB'
+        'message' => 'Ukuran file terlalu besar. Maksimal 10MB'
     ]);
     exit();
 }
@@ -217,13 +222,13 @@ if (!in_array($mime_type, $allowed_mimes)) {
     exit();
 }
 
-// Enforce size limit (5MB)
-$max_size = PROFILE_MAX_FILE_SIZE; // 5MB
+// Enforce size limit (10MB)
+$max_size = PROFILE_MAX_FILE_SIZE; // 10MB
 if ($file_size > $max_size) {
     http_response_code(422);
     echo json_encode([
         'status' => false,
-        'message' => 'Ukuran file terlalu besar. Maksimal 5MB'
+        'message' => 'Ukuran file terlalu besar. Maksimal 10MB'
     ]);
     exit();
 }
@@ -331,7 +336,7 @@ if (!empty($old_filename)) {
 // ============================================================================
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'];
-$exp = time() + 300; // 5 minutes
+$exp = time() + 86400; // 24 hours
 $payload = $id_pengguna . ':' . $new_filename . ':' . $exp;
 $sig = hash_hmac('sha256', $payload, PROFILE_IMAGE_SECRET);
 $proxy_url = $protocol . $host . '/gas/gas_web/login/user/foto_profil_image.php?id=' . urlencode($id_pengguna) . '&exp=' . $exp . '&sig=' . $sig;

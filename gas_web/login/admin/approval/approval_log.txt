@@ -159,3 +159,21 @@
 2026-02-05T08:44:56+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
 2026-02-09T18:57:01+01:00 APPROVE id=4 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
 2026-02-09T18:57:03+01:00 NOTIFY payload={"event":"user-approved","totalMembers":3} resp=
+2026-02-09T20:41:31+01:00 APPROVE id=4 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-09T20:41:33+01:00 NOTIFY payload={"event":"user-approved","totalMembers":3} resp=
+2026-02-10T12:28:54+01:00 APPROVE id=3 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-10T12:28:56+01:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-02-12T10:00:45+00:00 APPROVE id=6 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-12T10:00:47+00:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-02-12T10:31:33+00:00 APPROVE id=4 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-12T10:31:35+00:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=
+2026-02-12T11:04:04+00:00 APPROVE id=7 no_hp=087737248581 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-12T11:04:06+00:00 NOTIFY payload={"event":"user-approved","totalMembers":3} resp=
+2026-02-14T03:43:21+00:00 REJECT INSERT ERR id=4 err=Table 'tabungan.verifikasi_pengguna_rejects' doesn't exist
+2026-02-14T03:43:21+00:00 REJECT id=4 no_hp=087822451601 reason=oj wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-14T04:01:26+00:00 APPROVE id=4 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-14T04:01:28+00:00 NOTIFY payload={"event":"user-approved","totalMembers":3} resp=
+2026-02-14T16:22:11+00:00 APPROVE id=11 no_hp=087822451601 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-14T16:22:13+00:00 NOTIFY payload={"event":"user-approved","totalMembers":1} resp=
+2026-02-14T16:22:19+00:00 APPROVE id=10 no_hp=081990608817 wa_success=1 message=Pesan berhasil dikirim via WhatsApp
+2026-02-14T16:22:21+00:00 NOTIFY payload={"event":"user-approved","totalMembers":2} resp=

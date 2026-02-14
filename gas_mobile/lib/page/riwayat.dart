@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
@@ -21,214 +22,290 @@ class RiwayatTransaksiPage extends StatefulWidget {
   State<RiwayatTransaksiPage> createState() => _RiwayatTransaksiPageState();
 }
 
-class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with WidgetsBindingObserver {
+class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> {
   List<Map<String, dynamic>> items = [];
   bool loading = true;
-  String sortBy = 'newest'; // newest, oldest, amount_asc, amount_desc
-  String filterType = 'semua'; // semua, listrik, pinjaman, pulsa, kuota, topup
+  int _activeLoads = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _load();
-
-    // Listen for notification changes that might indicate transaction status updates
-    try {
-      NotifikasiHelper.onNotificationsChanged.addListener(_onNotificationsChanged);
-    } catch (_) {}
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    try {
-      NotifikasiHelper.onNotificationsChanged.removeListener(_onNotificationsChanged);
-    } catch (_) {}
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // App resumed from background, refresh data in case transactions were updated
-      _load();
-    }
-  }
-
-  void _onNotificationsChanged() {
-    // When notifications change, it might indicate that some transactions were approved/rejected
-    // Refresh the transaction list to show updated statuses
-    _load();
-  }
-
   Future<void> _load() async {
-    loading = true;
+    _activeLoads += 1;
+    if (_activeLoads == 1) {
+      loading = true;
+    }
     setState(() {});
-    
-    List<Map<String, dynamic>> list = [];
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Get user ID from controller
-    final userCtrl = Get.find<CUser>();
-    final userId = int.tryParse(userCtrl.user.id ?? '0') ?? 0;
-    
-    // Helper function to create a dedup key based on ID or full timestamp
-    // Prefer database ID if available (from API), fallback to id_mulai_nabung or timestamp
-    String _makeDedupKey(Map<String, dynamic> item) {
-      try {
-        // PRIORITY 1: If item has id_transaksi (from API), use that as PRIMARY key
-        if (item.containsKey('id_transaksi') && item['id_transaksi'] != null && item['id_transaksi'].toString().isNotEmpty) {
-          return 'txn:${item['id_transaksi'].toString()}';
-        }
-        
-        // PRIORITY 2: If item has id_mulai_nabung (from local or API), use that
-        // This links local pending transactions to their approved counterparts
-        if (item.containsKey('id_mulai_nabung') && item['id_mulai_nabung'] != null && item['id_mulai_nabung'].toString().isNotEmpty) {
-          return 'mulai:${item['id_mulai_nabung'].toString()}';
-        }
-        
-        // PRIORITY 3: If item has plain id (from API or local), use that
-        if (item.containsKey('id') && item['id'] != null && item['id'].toString().isNotEmpty) {
-          return 'id:${item['id'].toString()}';
-        }
-        
-        // FALLBACK: Use full timestamp + type + amount for local transactions without IDs
-        String tsStr = '';
-        if (item.containsKey('created_at')) {
-          tsStr = item['created_at'].toString();
-        } else if (item.containsKey('tanggal')) {
-          tsStr = item['tanggal'].toString();
-        } else if (item.containsKey('updated_at')) {
-          tsStr = item['updated_at'].toString();
-        }
-        
-        if (tsStr.isEmpty) {
+    try {
+      List<Map<String, dynamic>> list = [];
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get user ID from controller
+      final userCtrl = Get.find<CUser>();
+      final userId = int.tryParse(userCtrl.user.id ?? '0') ?? 0;
+      
+      // Helper function to create a dedup key based on ID or full timestamp
+      // Prefer database ID if available (from API), fallback to id_mulai_nabung or timestamp
+      String _makeDedupKey(Map<String, dynamic> item) {
+        try {
+          // PRIORITY 1: If item has id_transaksi (from API), use that as PRIMARY key
+          if (item.containsKey('id_transaksi') && item['id_transaksi'] != null && item['id_transaksi'].toString().isNotEmpty) {
+            return 'txn:${item['id_transaksi'].toString()}';
+          }
+          
+          // PRIORITY 2: If item has id_mulai_nabung (from local or API), use that
+          // This links local pending transactions to their approved counterparts
+          if (item.containsKey('id_mulai_nabung') && item['id_mulai_nabung'] != null && item['id_mulai_nabung'].toString().isNotEmpty) {
+            return 'mulai:${item['id_mulai_nabung'].toString()}';
+          }
+          
+          // PRIORITY 3: If item has plain id (from API or local), use that
+          if (item.containsKey('id') && item['id'] != null && item['id'].toString().isNotEmpty) {
+            return 'id:${item['id'].toString()}';
+          }
+          
+          // FALLBACK: Use full timestamp + type + amount for local transactions without IDs
+          String tsStr = '';
+          if (item.containsKey('created_at')) {
+            tsStr = item['created_at'].toString();
+          } else if (item.containsKey('tanggal')) {
+            tsStr = item['tanggal'].toString();
+          } else if (item.containsKey('updated_at')) {
+            tsStr = item['updated_at'].toString();
+          }
+          
+          if (tsStr.isEmpty) {
+            return '';
+          }
+          
+          // Extract amount and type for additional uniqueness
+          final amountVal = item['amount'] ?? item['jumlah'] ?? item['nominal'] ?? 0;
+          final amountStr = amountVal.toString();
+          String typeStr = item['type'] ?? item['jenis_transaksi'] ?? 'unknown';
+          typeStr = typeStr.toString().toLowerCase();
+          
+          // Create composite key with full timestamp
+          return 'ts:$tsStr|$amountStr|$typeStr';
+        } catch (_) {
           return '';
         }
-        
-        // Extract amount and type for additional uniqueness
-        final amountVal = item['amount'] ?? item['jumlah'] ?? item['nominal'] ?? 0;
-        final amountStr = amountVal.toString();
-        String typeStr = item['type'] ?? item['jenis_transaksi'] ?? 'unknown';
-        typeStr = typeStr.toString().toLowerCase();
-        
-        // Create composite key with full timestamp
-        return 'ts:$tsStr|$amountStr|$typeStr';
-      } catch (_) {
-        return '';
       }
-    }
-    
-    // STEP 1: Fetch fresh data from API get_riwayat_transaksi.php (approved/completed transactions)
-    final Set<String> apiDedupKeys = {};  // Track dedup keys to avoid duplicates
-    
-    if (userId > 0) {
-      try {
-        final resp = await http
-            .post(
-              Uri.parse('${Api.baseUrl}/get_riwayat_transaksi.php'),
-              body: {'id_pengguna': userId.toString()},
-            )
-            .timeout(const Duration(seconds: 10));
-        
-        if (resp.statusCode == 200) {
-          final json = jsonDecode(resp.body);
-          print('[RiwayatTransaksi] API Response: ${json.toString()}');
+      
+      // STEP 1: Fetch fresh data from API get_riwayat_transaksi.php (approved/completed transactions)
+      final Set<String> apiDedupKeys = {};  // Track dedup keys to avoid duplicates
+      
+      if (userId > 0) {
+        try {
+          final resp = await http
+              .post(
+                Uri.parse('${Api.baseUrl}/get_riwayat_transaksi.php'),
+                body: {'id_pengguna': userId.toString()},
+              )
+              .timeout(const Duration(seconds: 10));
           
-          if (json['success'] == true && json['data'] != null) {
-            final transactions = (json['data'] as List).cast<Map<String, dynamic>>();
-            print('[RiwayatTransaksi] Got ${transactions.length} transactions from API');
+          if (resp.statusCode == 200) {
+            final json = jsonDecode(resp.body);
+            print('[RiwayatTransaksi] API Response: ${json.toString()}');
             
-            for (var txn in transactions) {
-              final item = Map<String, dynamic>.from(txn);
-              print('[RiwayatTransaksi] Processing transaction: ${item['id']} - status: ${item['status']}');
+            if (json['success'] == true && json['data'] != null) {
+              final transactions = (json['data'] as List).cast<Map<String, dynamic>>();
+              print('[RiwayatTransaksi] Got ${transactions.length} transactions from API');
               
-              // Track dedup key - use both PRIORITY 1 AND PRIORITY 2 to catch all duplicates
-              final dedupKey1 = _makeDedupKey(item);
-              if (dedupKey1.isNotEmpty) {
-                apiDedupKeys.add(dedupKey1);
-              }
-              
-              // ALSO add id_mulai_nabung key if it exists (to match local pending entries)
-              if (item.containsKey('id_mulai_nabung') && item['id_mulai_nabung'] != null && item['id_mulai_nabung'].toString().isNotEmpty) {
-                apiDedupKeys.add('mulai:${item['id_mulai_nabung'].toString()}');
-              }
-              
-              // MAP jenis_transaksi ke type
-              if (item.containsKey('jenis_transaksi')) {
-                final jenisTrans = (item['jenis_transaksi'] ?? '').toString().toLowerCase();
+              for (var txn in transactions) {
+                final item = Map<String, dynamic>.from(txn);
+                print('[RiwayatTransaksi] Processing transaction: ${item['id']} - status: ${item['status']}');
                 
-                if (jenisTrans == 'setoran') {
-                  item['type'] = 'topup';
-                  item['title'] = 'Setoran Tabungan';
-                } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar' || jenisTrans == 'withdrawal_approved' || jenisTrans == 'withdrawal_rejected') {
-                  item['type'] = 'transfer';
-                  item['title'] = 'Pencairan Tabungan';
-                } else if (jenisTrans == 'transfer_masuk') {
-                  item['type'] = 'transfer_masuk';
-                  item['title'] = 'Transfer Masuk';
-                } else {
-                  item['type'] = 'lainnya';
-                  item['title'] = jenisTrans;
+                // Track dedup key - use both PRIORITY 1 AND PRIORITY 2 to catch all duplicates
+                final dedupKey1 = _makeDedupKey(item);
+                if (dedupKey1.isNotEmpty) {
+                  apiDedupKeys.add(dedupKey1);
                 }
-              }
-              
-              // MAP jumlah ke amount jika belum ada
-              if (!item.containsKey('amount') && item.containsKey('jumlah')) {
-                item['amount'] = item['jumlah'];
-              }
-              
-              // STATUS: normalize to 'success', 'pending', 'rejected'
-              // IMPORTANT: Only transactions from Riwayat Transaksi should have final status
-              // (approved/done/rejected) - never pending for this endpoint
-              if (item['status'] != null) {
-                final statusStr = item['status'].toString().toLowerCase().trim();
-                if (statusStr == 'approved' || statusStr == 'done' || statusStr == 'berhasil' || statusStr == 'sukses') {
-                  item['status'] = 'success';
-                  item['processing'] = false;  // Explicitly mark as not processing
-                } else if (statusStr == 'rejected' || statusStr == 'ditolak' || statusStr == 'tolak' || statusStr == 'failed') {
-                  item['status'] = 'rejected';
-                  item['processing'] = false;  // Explicitly mark as not processing
-                  // Ensure keterangan is set for rejected transactions
-                  if (item['keterangan'] == null || item['keterangan'].toString().trim().isEmpty) {
-                    item['keterangan'] = 'Pengajuan Anda ditolak oleh admin.';
+                
+                // ALSO add id_mulai_nabung key if it exists (to match local pending entries)
+                if (item.containsKey('id_mulai_nabung') && item['id_mulai_nabung'] != null && item['id_mulai_nabung'].toString().isNotEmpty) {
+                  apiDedupKeys.add('mulai:${item['id_mulai_nabung'].toString()}');
+                }
+                
+                // MAP jenis_transaksi ke type
+                if (item.containsKey('jenis_transaksi')) {
+                  final jenisTrans = (item['jenis_transaksi'] ?? '').toString().toLowerCase();
+                  
+                  if (jenisTrans == 'setoran') {
+                    item['type'] = 'topup';
+                    item['title'] = 'Setoran Tabungan';
+                  } else if (jenisTrans == 'transfer_keluar') {
+                    item['type'] = 'transfer';
+                    item['title'] = 'Kirim Uang';
+                  } else if (jenisTrans == 'penarikan' || jenisTrans == 'withdrawal_approved' || jenisTrans == 'withdrawal_rejected') {
+                    item['type'] = 'transfer';
+                    item['title'] = 'Pencairan Tabungan';
+                  } else if (jenisTrans == 'transfer_masuk') {
+                    item['type'] = 'transfer_masuk';
+                    item['title'] = 'Terima Uang';
+                  } else if (jenisTrans == 'pinjaman' || jenisTrans == 'pinjaman_biasa' || jenisTrans == 'pinjaman_kredit' || jenisTrans == 'pinjaman_kredit_approved' || jenisTrans == 'pinjaman_approved') {
+                    item['type'] = 'pinjaman';
+                    if (jenisTrans == 'pinjaman_kredit' || jenisTrans == 'pinjaman_kredit_approved') {
+                      item['title'] = 'Pinjaman Kredit';
+                    } else if (jenisTrans == 'pinjaman_biasa') {
+                      item['title'] = 'Pinjaman Biasa';
+                    } else {
+                      item['title'] = 'Pinjaman';
+                    }
+                  } else {
+                    item['type'] = 'lainnya';
+                    item['title'] = jenisTrans;
                   }
-                } else if (statusStr == 'pending' || statusStr == 'menunggu' || statusStr == 'menunggu_admin' || statusStr == 'menunggu_penyerahan') {
-                  // PENDING transactions will be filtered out in _buildList()
-                  // Keep them here so backend sync works properly
-                  item['status'] = 'pending';
-                  item['processing'] = true;
+                }
+                
+                // MAP jumlah ke amount jika belum ada
+                if (!item.containsKey('amount') && item.containsKey('jumlah')) {
+                  item['amount'] = item['jumlah'];
+                }
+                
+                // STATUS: normalize to 'success', 'pending', 'rejected'
+                // IMPORTANT: Only transactions from Riwayat Transaksi should have final status
+                // (approved/done/rejected) - never pending for this endpoint
+                if (item['status'] != null) {
+                  final statusStr = item['status'].toString().toLowerCase().trim();
+                  if (statusStr == 'approved' || statusStr == 'done' || statusStr == 'berhasil' || statusStr == 'sukses') {
+                    item['status'] = 'success';
+                    item['processing'] = false;  // Explicitly mark as not processing
+                  } else if (statusStr == 'rejected' || statusStr == 'ditolak' || statusStr == 'tolak' || statusStr == 'failed') {
+                    item['status'] = 'rejected';
+                    item['processing'] = false;  // Explicitly mark as not processing
+                    // Ensure keterangan is set for rejected transactions
+                    if (item['keterangan'] == null || item['keterangan'].toString().trim().isEmpty) {
+                      item['keterangan'] = 'Pengajuan Anda ditolak oleh admin.';
+                    }
+                  } else if (statusStr == 'pending' || statusStr == 'menunggu' || statusStr == 'menunggu_admin' || statusStr == 'menunggu_penyerahan') {
+                    // PENDING transactions will be filtered out in _buildList()
+                    // Keep them here so backend sync works properly
+                    item['status'] = 'pending';
+                    item['processing'] = true;
+                  } else {
+                    // Unknown status - treat as pending and log
+                    print('[RiwayatTransaksi] Unknown status: $statusStr - treating as pending');
+                    item['status'] = 'pending';
+                    item['processing'] = true;
+                  }
                 } else {
-                  // Unknown status - treat as pending and log
-                  print('[RiwayatTransaksi] Unknown status: $statusStr - treating as pending');
+                  // No status provided - should not happen, default to pending to be safe
                   item['status'] = 'pending';
                   item['processing'] = true;
                 }
-              } else {
-                // No status provided - should not happen, default to pending to be safe
-                item['status'] = 'pending';
-                item['processing'] = true;
+                
+                // Add ALL transactions to list - filtering happens in _buildList()
+                list.add(item);
+                print('[RiwayatTransaksi] Added transaction to list: ${item['id']} - final status: ${item['status']}');
               }
-              
-              // Add ALL transactions to list - filtering happens in _buildList()
-              list.add(item);
-              print('[RiwayatTransaksi] Added transaction to list: ${item['id']} - final status: ${item['status']}');
             }
+          } else {
+            print('[RiwayatTransaksi] API error: HTTP ${resp.statusCode} - ${resp.body}');
           }
-        } else {
-          print('[RiwayatTransaksi] API error: HTTP ${resp.statusCode} - ${resp.body}');
+        } catch (e) {
+          print('[RiwayatTransaksi] API error: $e');
         }
-      } catch (e) {
-        print('[RiwayatTransaksi] API error: $e');
       }
-    }
     
     // NOTE: Pending transactions are NO LONGER stored in SharedPreferences
     // They only appear in Notifikasi page
     // Only FINAL transactions (approved/rejected) appear in Riwayat Transaksi
     
+    // STEP 2: Also load local transaction records from SharedPreferences as fallback
+    // This ensures recently completed transfers/transactions appear immediately
+    // even before the server API reflects them
+    try {
+      final localTxns = prefs.getString('transactions');
+      if (localTxns != null) {
+        final localList = (jsonDecode(localTxns) as List).cast<Map<String, dynamic>>();
+        for (var localTx in localList) {
+          final localItem = Map<String, dynamic>.from(localTx);
+          
+          // Skip local transactions belonging to a different user
+          final localUserId = localItem['id_pengguna'];
+          if (localUserId != null && localUserId.toString() != userId.toString()) {
+            continue;
+          }
+          
+          // For transfer records without id_pengguna (old format), skip them
+          // since API data is authoritative for transfers
+          final localJenis = (localItem['jenis_transaksi'] ?? '').toString().toLowerCase();
+          if (localUserId == null && (localJenis == 'transfer_keluar' || localJenis == 'transfer_masuk')) {
+            continue;
+          }
+          
+          // Build dedup key for this local item
+          final localDedupKey = _makeDedupKey(localItem);
+          
+          // Skip if already present from API data
+          if (localDedupKey.isNotEmpty && apiDedupKeys.contains(localDedupKey)) {
+            continue;
+          }
+          // Also skip if matching id_transaksi already in API data
+          if (localItem['id_transaksi'] != null) {
+            final localTxnKey = 'txn:${localItem['id_transaksi']}';
+            if (apiDedupKeys.contains(localTxnKey)) {
+              continue;
+            }
+          }
+          
+          // Only include local records with a final status
+          final localStatus = (localItem['status'] ?? '').toString().toLowerCase();
+          final isLocalFinal = localStatus == 'approved' || localStatus == 'success' || 
+                               localStatus == 'done' || localStatus == 'rejected' ||
+                               localStatus == 'ditolak';
+          if (!isLocalFinal) continue;
+          
+          // Normalize type/title for local records
+          if (localItem.containsKey('jenis_transaksi')) {
+            final jenisTrans = (localItem['jenis_transaksi'] ?? '').toString().toLowerCase();
+            if (jenisTrans == 'transfer_keluar') {
+              localItem['type'] = localItem['type'] ?? 'transfer';
+              localItem['title'] = localItem['title'] ?? 'Kirim Uang';
+            } else if (jenisTrans == 'transfer_masuk') {
+              localItem['type'] = localItem['type'] ?? 'transfer_masuk';
+              localItem['title'] = localItem['title'] ?? 'Terima Uang';
+            } else if (jenisTrans == 'setoran') {
+              localItem['type'] = localItem['type'] ?? 'topup';
+              localItem['title'] = localItem['title'] ?? 'Setoran Tabungan';
+            }
+          }
+          
+          // Map jumlah/amount
+          if (!localItem.containsKey('amount') && localItem.containsKey('jumlah')) {
+            localItem['amount'] = localItem['jumlah'];
+          }
+          if (!localItem.containsKey('jumlah') && localItem.containsKey('amount')) {
+            localItem['jumlah'] = localItem['amount'];
+          }
+          
+          // Normalize status
+          if (localStatus == 'approved' || localStatus == 'done' || localStatus == 'berhasil' || localStatus == 'sukses') {
+            localItem['status'] = 'success';
+            localItem['processing'] = false;
+          } else if (localStatus == 'rejected' || localStatus == 'ditolak') {
+            localItem['status'] = 'rejected';
+            localItem['processing'] = false;
+          }
+          
+          list.add(localItem);
+          if (kDebugMode) {
+            print('[RiwayatTransaksi] Added local transaction: ${localItem['id']} - ${localItem['jenis_transaksi']} - status: ${localItem['status']}');
+          }
+        }
+      }
+    } catch (e) {
+      print('[RiwayatTransaksi] Error loading local transactions: $e');
+    }
+
     // STEP 3: Tambah pengajuan pinjaman dari SharedPreferences jika ada
     final pengajuan = prefs.getString('pengajuan_list');
     if (pengajuan != null) {
@@ -249,31 +326,48 @@ class _RiwayatTransaksiPageState extends State<RiwayatTransaksiPage> with Widget
 // STEP 4: Initial sort by newest-first using centralized helper
 list = NotifikasiHelper.sortNotificationsNewestFirst(list);
 
-    items = list;
-    loading = false;
-    setState(() {});
+      items = list;
+      loading = false;
+
+      // CRITICAL: Save the complete list (API + local) to SharedPreferences
+      // so data is cached locally and survives API failures on next load
+      await _saveAll(list);
+
+      setState(() {});
 
     // If navigated with an argument to open a specific transaction, show it
-    try {
-      final args = Get.arguments;
-      if (args != null && args is Map && args['open_id'] != null) {
-        final openId = args['open_id'];
-        final idx = items.indexWhere(
-          (e) => e['id'] == openId || e['id'].toString() == openId.toString(),
-        );
-        if (idx != -1) {
-          final it = Map<String, dynamic>.from(items[idx]);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showDetail(it);
-          });
+      try {
+        final args = Get.arguments;
+        if (args != null && args is Map && args['open_id'] != null) {
+          final openId = args['open_id'];
+          final idx = items.indexWhere(
+            (e) => e['id'] == openId || e['id'].toString() == openId.toString(),
+          );
+          if (idx != -1) {
+            final it = Map<String, dynamic>.from(items[idx]);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showDetail(it);
+            });
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
 
-    final changed = await _checkPendingTopups();
-    if (changed) {
-      await _load();
-      return;
+      final changed = await _checkPendingTopups();
+      if (changed) {
+        await _load();
+        return;
+      }
+    } finally {
+      _activeLoads -= 1;
+      if (_activeLoads < 0) {
+        _activeLoads = 0;
+      }
+      if (_activeLoads == 0) {
+        loading = false;
+      }
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -395,14 +489,13 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
             if (jenisTrans == 'setoran') {
               newEntry['type'] = 'topup';
               newEntry['title'] = 'Setoran Tabungan';
-            } else if (jenisTrans == 'penarikan' || jenisTrans == 'transfer_keluar' || jenisTrans == 'withdrawal_approved' || jenisTrans == 'withdrawal_rejected') {
+            } else if (jenisTrans == 'transfer_keluar') {
               newEntry['type'] = 'transfer';
-              newEntry['title'] = 'Pencairan Tabungan';
+              newEntry['title'] = 'Kirim Uang';
+            } else if (jenisTrans == 'transfer_masuk') {
+              newEntry['type'] = 'transfer_masuk';
+              newEntry['title'] = 'Terima Uang';
             }
-          }
-          
-          if (!newEntry.containsKey('amount') && newEntry.containsKey('jumlah')) {
-            newEntry['amount'] = newEntry['jumlah'];
           }
           
           // Normalize status
@@ -524,131 +617,30 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
     }
   }
 
-  void _showSortDialog() {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Urutkan'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<String>(
-              title: const Text('Terbaru'),
-              value: 'newest',
-              groupValue: sortBy,
-              onChanged: (v) {
-                setState(() => sortBy = v ?? 'newest');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Terlama'),
-              value: 'oldest',
-              groupValue: sortBy,
-              onChanged: (v) {
-                setState(() => sortBy = v ?? 'oldest');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Nominal Terendah'),
-              value: 'amount_asc',
-              groupValue: sortBy,
-              onChanged: (v) {
-                setState(() => sortBy = v ?? 'amount_asc');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Nominal Tertinggi'),
-              value: 'amount_desc',
-              groupValue: sortBy,
-              onChanged: (v) {
-                setState(() => sortBy = v ?? 'amount_desc');
-                Navigator.of(c).pop();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Filter'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<String>(
-              title: const Text('Semua'),
-              value: 'semua',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'semua');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Bayar Listrik'),
-              value: 'listrik',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'listrik');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Pinjaman'),
-              value: 'pinjaman',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'pinjaman');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Beli Pulsa'),
-              value: 'pulsa',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'pulsa');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Beli Kuota'),
-              value: 'kuota',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'kuota');
-                Navigator.of(c).pop();
-              },
-            ),
-            RadioListTile<String>(
-              title: const Text('Top-up'),
-              value: 'topup',
-              groupValue: filterType,
-              onChanged: (v) {
-                setState(() => filterType = v ?? 'topup');
-                Navigator.of(c).pop();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isBusy = loading || _activeLoads > 0;
 
     return Scaffold(
-      appBar: const OrangeHeader(title: 'Riwayat Transaksi'),
+      appBar: OrangeHeader(
+        title: 'Riwayat Transaksi',
+        actions: [
+          IconButton(
+            onPressed: isBusy ? null : _load,
+            icon: isBusy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -662,39 +654,6 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
                 ),
               ],
             ),
-      bottomNavigationBar: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-            ),
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: _showSortDialog,
-              icon: const Icon(Icons.swap_vert, color: Color(0xFFFF6B2C)),
-              label: Text(
-                'Urutkan',
-                style: GoogleFonts.roboto(color: const Color(0xFFFF6B2C)),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: _showFilterDialog,
-              icon: const Icon(Icons.filter_list, color: Color(0xFFFF6B2C)),
-              label: Text(
-                'Filter',
-                style: GoogleFonts.roboto(color: const Color(0xFFFF6B2C)),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -726,70 +685,17 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
 
     print('[RiwayatTransaksi] After filter: ${list.length} items');
 
-    // Filter by transaction type
-    if (filterType != 'semua') {
-      list = list.where((it) => (it['type'] ?? '') == filterType).toList();
-    }
-
-    // Apply sort order
+    // Apply default sort order (newest first)
     list.sort((a, b) {
-      switch (sortBy) {
-        case 'newest':
-          // Newest first: newer dates come first
-          final dateStrA = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? a['id']?.toString() ?? '';
-          final dateStrB = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? b['id']?.toString() ?? '';
-          try {
-            final dateA = DateTime.parse(dateStrA.toString());
-            final dateB = DateTime.parse(dateStrB.toString());
-            return dateB.compareTo(dateA);  // DESC: newest first
-          } catch (_) {
-            return dateStrB.toString().compareTo(dateStrA.toString());
-          }
-        case 'oldest':
-          // Oldest first: older dates come first
-          final dateStrA = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? a['id']?.toString() ?? '';
-          final dateStrB = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? b['id']?.toString() ?? '';
-          try {
-            final dateA = DateTime.parse(dateStrA.toString());
-            final dateB = DateTime.parse(dateStrB.toString());
-            return dateA.compareTo(dateB);  // ASC: oldest first
-          } catch (_) {
-            return dateStrA.toString().compareTo(dateStrB.toString());
-          }
-        case 'amount_asc':
-          final amountA =
-              (a['price'] ?? a['nominal'] ?? a['amount'] ?? 0) as dynamic;
-          final amountB =
-              (b['price'] ?? b['nominal'] ?? b['amount'] ?? 0) as dynamic;
-          final numA = amountA is num
-              ? amountA
-              : num.tryParse(amountA.toString()) ?? 0;
-          final numB = amountB is num
-              ? amountB
-              : num.tryParse(amountB.toString()) ?? 0;
-          return numA.compareTo(numB);
-        case 'amount_desc':
-          final amountA =
-              (a['price'] ?? a['nominal'] ?? a['amount'] ?? 0) as dynamic;
-          final amountB =
-              (b['price'] ?? b['nominal'] ?? b['amount'] ?? 0) as dynamic;
-          final numA = amountA is num
-              ? amountA
-              : num.tryParse(amountA.toString()) ?? 0;
-          final numB = amountB is num
-              ? amountB
-              : num.tryParse(amountB.toString()) ?? 0;
-          return numB.compareTo(numA);
-        default: // newest (default)
-          final dateStrA = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? a['id']?.toString() ?? '';
-          final dateStrB = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? b['id']?.toString() ?? '';
-          try {
-            final dateA = DateTime.parse(dateStrA.toString());
-            final dateB = DateTime.parse(dateStrB.toString());
-            return dateB.compareTo(dateA);  // DESC: newest first
-          } catch (_) {
-            return dateStrB.toString().compareTo(dateStrA.toString());
-          }
+      // Newest first: newer dates come first
+      final dateStrA = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? a['id']?.toString() ?? '';
+      final dateStrB = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? b['id']?.toString() ?? '';
+      try {
+        final dateA = DateTime.parse(dateStrA.toString());
+        final dateB = DateTime.parse(dateStrB.toString());
+        return dateB.compareTo(dateA);  // DESC: newest first
+      } catch (_) {
+        return dateStrB.toString().compareTo(dateStrA.toString());
       }
     });
 
@@ -845,22 +751,7 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
               );
               setState(() {});
               await _saveAll(items);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Transaksi dihapus'),
-                  action: SnackBarAction(
-                    label: 'Undo',
-                    onPressed: () async {
-                      final insertIdx = originalIndex == -1
-                          ? index
-                          : originalIndex;
-                      items.insert(insertIdx, removed);
-                      await _saveAll(items);
-                      setState(() {});
-                    },
-                  ),
-                ),
-              );
+              NotificationService.showSuccess('Transaksi dihapus');
               return true;
             }
             return false;
@@ -903,6 +794,8 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
                             ? Icons.account_balance_wallet
                             : it['type'] == 'transfer'
                             ? Icons.swap_horiz
+                            : it['type'] == 'pinjaman'
+                            ? Icons.attach_money
                             : Icons.request_quote,
                         color: const Color(0xFFFF6B2C),
                         size: 28,
@@ -936,6 +829,8 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
                                             ? 'Setoran Tabungan'
                                             : it['type'] == 'transfer'
                                             ? 'Transfer'
+                                            : it['type'] == 'pinjaman'
+                                            ? 'Pinjaman'
                                             : 'Pengajuan Pinjaman'),
                                   style: GoogleFonts.roboto(
                                     fontWeight: FontWeight.w700,

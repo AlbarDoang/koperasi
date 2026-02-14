@@ -35,12 +35,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   File? _imageFile;
 
+  // Batas maksimal ukuran foto profil: 10MB
+  static const int _maxPhotoSizeBytes = 10 * 1024 * 1024; // 10MB
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      // Validasi ukuran file maksimal 10MB
+      final fileSize = await file.length();
+      if (fileSize > _maxPhotoSizeBytes) {
+        if (mounted) {
+          CustomToast.error(context, 'Ukuran foto maksimal 10MB. Silakan pilih foto yang lebih kecil.');
+        }
+        return;
+      }
       setState(() {
-        _imageFile = File(pickedFile.path);
+        _imageFile = file;
       });
     }
   }
@@ -51,7 +63,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
 
     try {
-      final uploadedUrl = await EventDB.uploadFotoProfil(_user!.id ?? '', _imageFile!);
+      final uploadedUrl = await EventDB.uploadFotoProfil(_user!.id ?? '', _imageFile!, showToast: false);
       if (uploadedUrl != null) {
         // Refresh profile from server to get fotoUpdatedAt and fresh URL
         try {
@@ -73,20 +85,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
               created_at: _user!.created_at,
               saldo: _user!.saldo,
               foto: uploadedUrl.isNotEmpty ? uploadedUrl : null,
+              fotoUpdatedAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
             );
             await EventPref.saveUser(_user!);
             try { Get.find<CUser>().setUser(_user!); } catch (_) {}
           }
         } catch (e) {
-          if (mounted) CustomToast.error(context, 'Gagal menyimpan data lokal');
+          if (mounted) debugPrint('Gagal menyimpan data lokal: $e');
         }
 
-        CustomToast.success(context, 'Foto profil berhasil diunggah');
+        // Toast ditangani oleh caller
       } else {
-        CustomToast.error(context, 'Gagal mengunggah foto profil');
+        throw Exception('Gagal mengunggah foto profil');
       }
     } catch (e) {
-      CustomToast.error(context, 'Gagal mengunggah foto profil');
+      rethrow;
     }
   }
 
@@ -128,10 +141,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _tanggalLahirController.text = user.tanggal_lahir ?? '';
         _loading = false;
       });
+
+      // Refresh dari server untuk mendapatkan signed URL foto yang fresh
+      _refreshProfileFromServer(user.id ?? '');
     } else {
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  /// Refresh profile data dari server untuk mendapatkan signed URL foto yang valid
+  Future<void> _refreshProfileFromServer(String userId) async {
+    if (userId.isEmpty) return;
+    try {
+      final fresh = await EventDB.getProfilLengkap(userId);
+      if (fresh != null && mounted) {
+        await EventPref.saveUser(fresh);
+        try { Get.find<CUser>().setUser(fresh); } catch (_) {}
+        setState(() {
+          _user = fresh;
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal refresh profil dari server: $e');
     }
   }
 
@@ -161,11 +194,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         return Image.file(_imageFile!, fit: BoxFit.cover);
                       }
                       if (_user != null && _user!.foto != null && _user!.foto!.isNotEmpty) {
+                        String url;
+                        if (_user!.foto!.startsWith('http')) {
+                          url = _user!.foto!;
+                        } else {
+                          url = 'http://localhost/gas_storage/foto_profil/${_user!.id}/${_user!.foto!}';
+                        }
                         final ts = _user!.fotoUpdatedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-                        final imageUrl = (_user!.foto!.contains('?') ? '${_user!.foto!}&t=$ts' : '${_user!.foto!}?t=$ts');
+                        url = (url.contains('?') ? '$url&t=$ts' : '$url?t=$ts');
                         return Image.network(
-                          imageUrl,
-                          key: ValueKey(imageUrl),
+                          url,
+                          key: ValueKey(url),
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
                           errorBuilder: (_, __, ___) => Container(color: Colors.grey[300], child: const Icon(Icons.person, size: 40, color: Colors.grey)),
@@ -267,7 +306,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         await _uploadPhoto();
                       }
 
-                      await EventDB.updateBiodata(
+                      final bioSuccess = await EventDB.updateBiodata(
                         _user!.id ?? '',
                         '', // role (not required here)
                         _namaController.text.trim(),
@@ -283,7 +322,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         '', // nama_ibu
                         '', // nama_ayah
                         '', // no_ortu
+                        showToast: false,
                       );
+
+                      if (!bioSuccess) {
+                        if (mounted) {
+                          CustomToast.error(context, 'Gagal memperbarui data profil');
+                        }
+                        return;
+                      }
 
                       // Reload user data from database to ensure UI updates
                       final updatedUser = await EventDB.getProfilLengkap(_user!.id ?? '');
@@ -292,10 +339,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         try {
                           Get.find<CUser>().setUser(updatedUser);
                         } catch (_) {}
+                        setState(() {
+                          _user = updatedUser;
+                        });
                       }
 
                       // Show success toast and return to profile page
-                      CustomToast.success(context, 'Profil berhasil diperbarui');
+                      if (mounted) {
+                        CustomToast.success(context, 'Profil berhasil diperbarui');
+                      }
                       
                       // Wait a moment for toast to show, then navigate back
                       await Future.delayed(const Duration(milliseconds: 500));

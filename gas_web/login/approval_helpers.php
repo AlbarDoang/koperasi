@@ -4,6 +4,9 @@
  * schema differences (missing columns, renamed tables, etc).
  */
 
+// Set PHP timezone to WIB so date() returns correct local time
+date_default_timezone_set('Asia/Jakarta');
+
 require_once __DIR__ . '/dashboard_helpers.php';
 // Optional: notification and transaksi helpers used to notify users and record a transaksi row on approval
 $notif_helper = __DIR__ . '/../flutter_api/notif_helper.php';
@@ -670,17 +673,22 @@ if (!function_exists('approval_apply_action')) {
                         }
 
                         if ($notif_user_id && function_exists('safe_create_notification')) {
-                            $title = 'Pengajuan pinjaman disetujui';
-                            $message_n = 'Pengajuan pinjaman Anda sebesar ' . number_format($pendingRow['amount'], 0, ',', '.') . ' telah disetujui oleh admin.';
-                            @safe_create_notification($con, $notif_user_id, 'pinjaman', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount']]));
+                            $title = 'Pengajuan Pinjaman Disetujui';
+                            $tenor_val = isset($pendingRow['raw']['tenor']) ? intval($pendingRow['raw']['tenor']) : 0;
+                            $tenorStr = $tenor_val > 0 ? ' untuk tenor ' . $tenor_val . ' bulan' : '';
+                            $message_n = 'Pengajuan Pinjaman Anda sebesar Rp ' . number_format($pendingRow['amount'], 0, ',', '.') . $tenorStr . ' disetujui, silahkan cek saldo anda di halaman dashboard.';
+                            @safe_create_notification($con, $notif_user_id, 'pinjaman', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount'], 'tenor' => $tenor_val, 'status' => 'berhasil']));
                         }
 
                         if (function_exists('record_transaction')) {
                             $txPayload = [
-                                'jenis_transaksi' => 'pinjaman_approved',
+                                'jenis_transaksi' => 'pinjaman_biasa',
                                 'jumlah' => $pendingRow['amount'],
-                                'jumlah_masuk' => $pendingRow['amount'],
+                                'saldo_sebelum' => 0,
+                                'saldo_sesudah' => 0,
                                 'keterangan' => 'Pinjaman disetujui oleh admin',
+                                'tanggal' => date('Y-m-d H:i:s'),
+                                'status' => 'approved'
                             ];
                             if (!empty($notif_user_id)) {
                                 $txPayload['id_pengguna'] = $notif_user_id;
@@ -763,20 +771,51 @@ if (!function_exists('approval_apply_action')) {
                     }
 
                     if ($notif_user_id && function_exists('safe_create_notification')) {
-                        $title = 'Pengajuan disetujui';
-                        $message_n = 'Permintaan Anda sebesar ' . number_format($pendingRow['amount'], 0, ',', '.') . ' telah di-approve oleh admin.';
-                        @safe_create_notification($con, $notif_user_id, 'transaksi', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount']]));
+                        $isPinjamanApprove = (isset($schema['table']) && stripos($schema['table'], 'pinjaman') !== false);
+                        if ($isPinjamanApprove) {
+                            $title = 'Pengajuan Pinjaman Disetujui';
+                            $tenor_val = isset($pendingRow['raw']['tenor']) ? intval($pendingRow['raw']['tenor']) : 0;
+                            $tenorStr = $tenor_val > 0 ? ' untuk tenor ' . $tenor_val . ' bulan' : '';
+                            $message_n = 'Pengajuan Pinjaman Anda sebesar Rp ' . number_format($pendingRow['amount'], 0, ',', '.') . $tenorStr . ' disetujui, silahkan cek saldo anda di halaman dashboard.';
+                            @safe_create_notification($con, $notif_user_id, 'pinjaman', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount'], 'tenor' => $tenor_val, 'status' => 'berhasil']));
+                        } else {
+                            $title = 'Pengajuan disetujui';
+                            $message_n = 'Permintaan Anda sebesar ' . number_format($pendingRow['amount'], 0, ',', '.') . ' telah di-approve oleh admin.';
+                            @safe_create_notification($con, $notif_user_id, 'transaksi', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount']]));
+                        }
                     }
 
                     if (function_exists('record_transaction')) {
+                        // Determine correct jenis_transaksi based on the source table
+                        $tableName = $schema['table'] ?? '';
+                        if ($tableName === 'pinjaman_biasa' || $tableName === 'pinjaman') {
+                            $txJenis = 'pinjaman_biasa';
+                        } elseif ($tableName === 'pinjaman_kredit') {
+                            $txJenis = 'pinjaman_kredit';
+                        } else {
+                            $txJenis = 'setoran'; // fallback for other types
+                        }
+                        
+                        $tenor_val_tx = isset($pendingRow['raw']['tenor']) ? intval($pendingRow['raw']['tenor']) : 0;
+                        $tenorStr_tx = $tenor_val_tx > 0 ? ' untuk tenor ' . $tenor_val_tx . ' bulan' : '';
+                        $amountStr_tx = 'Rp ' . number_format($pendingRow['amount'], 0, ',', '.');
+                        
+                        if (stripos($tableName, 'pinjaman') !== false) {
+                            $txKeterangan = 'Pengajuan Pinjaman Anda sebesar ' . $amountStr_tx . $tenorStr_tx . ' disetujui, silahkan cek saldo anda di halaman dashboard.';
+                        } else {
+                            $txKeterangan = 'Transaksi disetujui oleh admin';
+                        }
+                        
                         $txPayload = [
-                            'jenis_transaksi' => 'pending_approved',
+                            'jenis_transaksi' => $txJenis,
                             'jumlah' => $pendingRow['amount'],
-                            'jumlah_masuk' => $pendingRow['amount'],
-                            'keterangan' => 'Transaksi disetujui oleh admin',
+                            'saldo_sebelum' => 0,
+                            'saldo_sesudah' => 0,
+                            'keterangan' => $txKeterangan,
+                            'tanggal' => date('Y-m-d H:i:s'),
+                            'status' => 'approved'
                         ];
                         if (!empty($notif_user_id)) {
-                            $txPayload['id_pengguna'] = $notif_user_id;
                             $txPayload['id_pengguna'] = $notif_user_id;
                         }
                         @record_transaction($con, $txPayload);
@@ -841,16 +880,59 @@ if (!function_exists('approval_apply_action')) {
 
                     if (!empty($notif_user_id) && function_exists('safe_create_notification')) {
                         $isPinjaman = (isset($schema['table']) && stripos($schema['table'], 'pinjaman') !== false);
-                        $title = $isPinjaman ? 'Pengajuan pinjaman ditolak' : 'Pengajuan ditolak';
-                        $amount = isset($pendingRow['amount']) ? number_format($pendingRow['amount'], 0, ',', '.') : null;
-                        $message_n = $isPinjaman && $amount ? ('Pengajuan pinjaman Anda sebesar ' . $amount . ' telah ditolak oleh admin.') : 'Pengajuan Anda telah ditolak.';
-                        if (!empty($reason)) $message_n .= ' Alasan: ' . $reason;
-                        @safe_create_notification($con, $notif_user_id, $isPinjaman ? 'pinjaman' : 'transaksi', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount'] ?? null]));
+                        if ($isPinjaman) {
+                            $title = 'Pengajuan Pinjaman Ditolak';
+                            $tenor_val = isset($pendingRow['raw']['tenor']) ? intval($pendingRow['raw']['tenor']) : 0;
+                            $tenorStr = $tenor_val > 0 ? ' untuk tenor ' . $tenor_val . ' bulan' : '';
+                            $amount = isset($pendingRow['amount']) ? number_format($pendingRow['amount'], 0, ',', '.') : null;
+                            $message_n = $amount ? ('Pengajuan Pinjaman Anda sebesar Rp ' . $amount . $tenorStr . ' ditolak, silahkan hubungi admin untuk informasi lebih lanjut.') : 'Pengajuan Pinjaman Anda ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
+                            if (!empty($reason)) $message_n .= ' Alasan: ' . $reason;
+                            @safe_create_notification($con, $notif_user_id, 'pinjaman', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount'] ?? null, 'tenor' => $tenor_val, 'status' => 'ditolak']));
+                        } else {
+                            $title = 'Pengajuan ditolak';
+                            $amount = isset($pendingRow['amount']) ? number_format($pendingRow['amount'], 0, ',', '.') : null;
+                            $message_n = $amount ? ('Pengajuan Anda sebesar ' . $amount . ' telah ditolak.') : 'Pengajuan Anda telah ditolak.';
+                            if (!empty($reason)) $message_n .= ' Alasan: ' . $reason;
+                            @safe_create_notification($con, $notif_user_id, 'transaksi', $title, $message_n, json_encode(['application_id' => $pendingRow['id'], 'amount' => $pendingRow['amount'] ?? null]));
+                        }
                         @file_put_contents(__DIR__ . '/../../api/pinjaman/debug.log', date('Y-m-d H:i:s') . " rejection_notif user={$notif_user_id} id={$pendingRow['id']}\n", FILE_APPEND | LOCK_EX);
                     }
                 } catch (Throwable $e) {
                     // non-fatal: continue
                 }
+
+                // Insert into transaksi table for rejected pinjaman
+                try {
+                    $tableName_rej = $schema['table'] ?? '';
+                    if (stripos($tableName_rej, 'pinjaman') !== false && function_exists('record_transaction')) {
+                        $notif_user_rej = null;
+                        $memberCtx_rej = approval_seek_member($con, $schema, $pendingRow['member_value']);
+                        if ($memberCtx_rej && isset($memberCtx_rej['data']) && is_array($memberCtx_rej['data'])) {
+                            foreach (['id_pengguna','id','id_user'] as $k_rej) {
+                                if (isset($memberCtx_rej['data'][$k_rej])) { $notif_user_rej = (int)$memberCtx_rej['data'][$k_rej]; break; }
+                            }
+                        }
+                        if ($notif_user_rej) {
+                            $txJenis_rej = ($tableName_rej === 'pinjaman_kredit') ? 'pinjaman_kredit' : 'pinjaman_biasa';
+                            $tenor_rej = isset($pendingRow['raw']['tenor']) ? intval($pendingRow['raw']['tenor']) : 0;
+                            $tenorStr_rej = $tenor_rej > 0 ? ' untuk tenor ' . $tenor_rej . ' bulan' : '';
+                            $amountStr_rej = 'Rp ' . number_format($pendingRow['amount'], 0, ',', '.');
+                            $txKet_rej = 'Pengajuan Pinjaman Anda sebesar ' . $amountStr_rej . $tenorStr_rej . ' ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
+                            if (!empty($reason)) $txKet_rej .= ' Alasan: ' . $reason;
+                            
+                            @record_transaction($con, [
+                                'id_pengguna' => $notif_user_rej,
+                                'jenis_transaksi' => $txJenis_rej,
+                                'jumlah' => $pendingRow['amount'],
+                                'saldo_sebelum' => 0,
+                                'saldo_sesudah' => 0,
+                                'keterangan' => $txKet_rej,
+                                'tanggal' => date('Y-m-d H:i:s'),
+                                'status' => 'rejected'
+                            ]);
+                        }
+                    }
+                } catch (Throwable $e) { /* non-fatal */ }
 
                 return ['success' => true, 'message' => 'Transaksi berhasil di-reject'];
             }

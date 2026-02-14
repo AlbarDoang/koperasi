@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -63,12 +64,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
     try {
+      final user = await EventPref.getUser();
+      final ownerId = (user?.id?.toString() ?? '').isNotEmpty
+          ? user!.id.toString()
+          : (user?.no_hp?.toString() ?? '');
+      final prefs = await SharedPreferences.getInstance();
+      final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
+
       // Try to fetch latest notifications from server first (real-time-ish)
       try {
-        final user = await EventPref.getUser();
         if (user != null && (user.id ?? '').isNotEmpty) {
           final server = await EventDB.getNotifications(user.id ?? '');
-          final prefs = await SharedPreferences.getInstance();
           final filtered = server
               .where((n) {
                 final t = (n['type'] ?? '').toString();
@@ -99,6 +105,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                       n['created_at'] ?? DateTime.now().toIso8601String(),
                   'read': n['read'] ?? false,
                   'data': n['data'] ?? null,
+                  if (ownerId.isNotEmpty) 'owner_id': ownerId,
                 },
               )
               .toList();
@@ -109,6 +116,12 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
             try {
               final existingRaw = prefs.getString('notifications') ?? '[]';
               final List<dynamic> existingList = jsonDecode(existingRaw);
+              // Use the FULL existing list for merge (safe cast), not owner-filtered subset
+              // Owner filtering is only for display, not for storage
+              final safeExisting = NotifikasiHelper.filterForOwner(
+                existingList,
+                '',  // empty = return all items safely cast
+              );
 
               // Load blacklist of deleted notifications
               final blacklistRaw =
@@ -120,7 +133,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
               final merged = NotifikasiHelper.mergeServerWithExisting(
                 List<Map<String, dynamic>>.from(filtered),
-                existingList,
+                safeExisting,
                 blacklist: blacklist,
               );
 
@@ -128,9 +141,13 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               final sortedMerged =
                   NotifikasiHelper.sortNotificationsNewestFirst(merged);
               await prefs.setString('notifications', jsonEncode(sortedMerged));
+              if (ownerId.isNotEmpty) {
+                await prefs.setString('notifications_owner_id', ownerId);
+              }
             } catch (_) {
-              // Fallback: if merge fails, still write server-only list
-              await prefs.setString('notifications', jsonEncode(filtered));
+              // If merge fails, do NOT overwrite prefs with server-only data
+              // to avoid permanently destroying local-only notifications.
+              // Local cache is preserved as-is.
             }
           } else {
             // If server returned empty, avoid overwriting local notifications so immediate
@@ -142,7 +159,6 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       }
 
       // Load local notifications and filter for display
-      final prefs = await SharedPreferences.getInstance();
       final data = prefs.getString('notifications') ?? '[]';
       if (kDebugMode)
         debugPrint('[NotifikasiPage] prefs.notifications = ' + data);
@@ -153,6 +169,16 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         final lastRaw = prefs.getString('last_local_notif') ?? '';
         if (lastRaw.isNotEmpty) {
           final Map<String, dynamic> lastLocal = jsonDecode(lastRaw);
+          if (!NotifikasiHelper.isForOwner(
+            lastLocal,
+            ownerId,
+            fallbackOwnerId: storedOwnerId,
+          )) {
+            if (kDebugMode)
+              debugPrint(
+                '[NotifikasiPage] skipped last_local_notif because owner mismatch',
+              );
+          } else {
           // Skip inserting last_local_notif if it should be excluded per helper rules
           try {
             if (NotifikasiHelper.isExcludedNotification(lastLocal)) {
@@ -183,11 +209,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               }
             }
           } catch (_) {}
+          }
         }
       } catch (_) {}
 
       // Keep only transaction-related notifications (no dummy/system/promo)
-      final filteredLocal = decoded.cast<Map<String, dynamic>>().where((n) {
+      final ownerFiltered = NotifikasiHelper.filterForOwner(
+        decoded,
+        ownerId,
+        fallbackOwnerId: storedOwnerId,
+      );
+      final filteredLocal = ownerFiltered.where((n) {
         final t = (n['type'] ?? '').toString();
 
         // Accept transaksi, topup, legacy 'tabungan', mulai_nabung and pinjaman (treated as transaction-like)
@@ -219,11 +251,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      Get.snackbar(
-        'Error',
-        'Gagal memuat notifikasi',
-        snackPosition: SnackPosition.TOP,
-      );
+      NotificationService.showError('Gagal memuat notifikasi');
     }
   }
 
@@ -278,11 +306,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         }
       } catch (_) {}
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Gagal mengubah status',
-        snackPosition: SnackPosition.TOP,
-      );
+      NotificationService.showError('Gagal mengubah status');
     }
   }
 
@@ -335,13 +359,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       }
 
       // Extract transaction ID from notification data
+      // Support multiple ID formats: mulai_id, id_mulai_nabung, id_transaksi, tabungan_keluar_id
+      // Also support pinjaman-specific keys: id, application_id
       dynamic mulaiId;
+      dynamic tabKeluarId;
       if (notifParsed != null && notifParsed.isNotEmpty) {
         mulaiId = notifParsed['mulai_id'] ?? 
                   notifParsed['id_mulai_nabung'] ?? 
                   notifParsed['id_transaksi'];
+        tabKeluarId = notifParsed['tabungan_keluar_id'];
         if (kDebugMode) {
-          debugPrint('[NotifikasiPage] Extracted mulai_id/id_mulai_nabung/id_transaksi: $mulaiId');
+          debugPrint('[NotifikasiPage] Extracted mulai_id=$mulaiId, tabungan_keluar_id=$tabKeluarId');
         }
       }
 
@@ -354,15 +382,77 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           debugPrint('[NotifikasiPage] Extracted ID from top-level notif: $mulaiId');
         }
       }
+      if (tabKeluarId == null) {
+        tabKeluarId = notif['tabungan_keluar_id'];
+      }
+
+      // Detect if this is a pinjaman notification
+      final notifTitleLower = (notif['title'] ?? '').toString().toLowerCase();
+      final isPinjamanNotif = notifTitleLower.contains('pinjaman');
+      // Detect if this is a transfer notification (sender side)
+      final isTransferNotif = notifTitleLower.contains('kirim uang') ||
+          (notifTitleLower.contains('transfer') && !notifTitleLower.contains('terima'));
+      // Detect if this is a receive-transfer notification (receiver side)
+      final isReceiveTransferNotif = notifTitleLower.contains('terima uang') ||
+          (notifTitleLower.contains('terima') && notifTitleLower.contains('transfer'));
+      // Extract pinjaman-specific IDs (from pinjaman_approval.php / approval_helpers.php)
+      dynamic pinjamanId;
+      if (isPinjamanNotif && notifParsed != null) {
+        pinjamanId = notifParsed['id'] ?? notifParsed['application_id'];
+        if (kDebugMode) {
+          debugPrint('[NotifikasiPage] Pinjaman notification detected, pinjamanId=$pinjamanId');
+        }
+      }
+
+      // Extract correct jenis from notification (for overriding wrong API data)
+      final jenisFromNotif = _extractJenisTabunganFromNotif(notif, notifParsed);
+      if (kDebugMode) {
+        debugPrint('[NotifikasiPage] Extracted jenis from notif: $jenisFromNotif');
+      }
+
+      // Extract transfer amount from notification data for matching
+      dynamic transferAmount;
+      if (isTransferNotif || isReceiveTransferNotif) {
+        transferAmount = notifParsed?['amount'] ?? notifParsed?['nominal'];
+        if (transferAmount == null || transferAmount == 0) {
+          final notifMsg = (notif['message'] ?? '').toString();
+          final amtMatch = RegExp(r'Rp\s*[\d.,]+').firstMatch(notifMsg);
+          if (amtMatch != null) {
+            transferAmount = int.tryParse(amtMatch.group(0)!.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+          }
+        }
+      }
 
       // DIRECT NAVIGATION: Extract transaction ID and navigate
-      if (mulaiId != null) {
-        if (kDebugMode) debugPrint('[NotifikasiPage] ✓ Have transaction ID: $mulaiId - fetching complete transaction data...');
+      if (mulaiId != null || tabKeluarId != null || isPinjamanNotif || isTransferNotif || isReceiveTransferNotif) {
+        final searchId = mulaiId ?? tabKeluarId;
+        final notifMessage = (notif['message'] ?? '').toString().trim();
+        if (kDebugMode) debugPrint('[NotifikasiPage] ✓ Have transaction ID: $searchId (isPinjaman=$isPinjamanNotif, isTransfer=$isTransferNotif, isReceiveTransfer=$isReceiveTransferNotif) - fetching complete transaction data...');
         
         // FETCH complete transaction data from API using the ID from notification
-        final txData = await _fetchCompleteTransactionData(mulaiId);
+        // For pinjaman: also pass notification message for keterangan-based matching
+        // Pass tabKeluarId separately so we don't confuse it with mulaiId/id_transaksi
+        final txData = await _fetchCompleteTransactionData(
+          mulaiId,
+          tabKeluarId: tabKeluarId,
+          notifMessage: isPinjamanNotif ? notifMessage : null,
+          isPinjaman: isPinjamanNotif,
+          pinjamanAmount: notifParsed?['amount'],
+          isTransfer: isTransferNotif,
+          transferAmount: transferAmount,
+          isReceiveTransfer: isReceiveTransferNotif,
+          receiveTransferAmount: isReceiveTransferNotif ? transferAmount : null,
+        );
         
         if (txData != null) {
+          // ALWAYS override jenis_tabungan from notification source (more reliable than API)
+          if (jenisFromNotif != null && jenisFromNotif.trim().isNotEmpty) {
+            txData['jenis_tabungan'] = jenisFromNotif.trim();
+          }
+          final notifMessage = (notif['message'] ?? '').toString().trim();
+          if (notifMessage.isNotEmpty && _looksLikeTabunganMessage(notifMessage)) {
+            txData['keterangan'] = notifMessage;
+          }
           if (kDebugMode) {
             debugPrint('[NotifikasiPage] ✓✓✓ Got complete transaction! Navigating to detail page...');
             debugPrint('[NotifikasiPage] Transaction data: $txData');
@@ -376,14 +466,103 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           return;
         } else {
           if (kDebugMode) {
-            debugPrint('[NotifikasiPage] ✗ Failed to fetch complete transaction data for ID: $mulaiId');
+            debugPrint('[NotifikasiPage] ✗ Failed to fetch complete transaction data for ID: $searchId');
           }
         }
       }
       
-      // Fallback: if we can't fetch the transaction, don't navigate
-      if (kDebugMode) {
-        debugPrint('[NotifikasiPage] ✗ No transaction ID extracted from notification - not navigating');
+      // FALLBACK: Build a synthetic transaction from notification data and navigate
+      // This handles withdrawal notifications that don't have matching mulai_id
+      {
+        if (kDebugMode) {
+          debugPrint('[NotifikasiPage] Building synthetic transaction from notification data...');
+        }
+        final notifTitle = (notif['title'] ?? '').toString();
+        final notifMessage = (notif['message'] ?? '').toString();
+        final notifTime = (notif['created_at'] ?? '').toString();
+        
+        // Determine transaction type and status from title
+        final titleLower = notifTitle.toLowerCase();
+        String jenisTransaksi = 'penarikan';
+        String status = 'pending';
+        
+        if (titleLower.contains('pinjaman') && titleLower.contains('disetujui')) {
+          jenisTransaksi = 'pinjaman';
+          status = 'approved';
+        } else if (titleLower.contains('pinjaman') && titleLower.contains('ditolak')) {
+          jenisTransaksi = 'pinjaman';
+          status = 'rejected';
+        } else if (titleLower.contains('pinjaman') && (titleLower.contains('diajukan') || titleLower.contains('verifikasi') || titleLower.contains('menunggu'))) {
+          jenisTransaksi = 'pinjaman';
+          status = 'pending';
+        } else if (titleLower.contains('pencairan disetujui')) {
+          status = 'approved';
+        } else if (titleLower.contains('pencairan ditolak')) {
+          status = 'rejected';
+        } else if (titleLower.contains('setoran') && titleLower.contains('disetujui')) {
+          jenisTransaksi = 'setoran';
+          status = 'approved';
+        } else if (titleLower.contains('setoran') && titleLower.contains('ditolak')) {
+          jenisTransaksi = 'setoran';
+          status = 'rejected';
+        } else if (titleLower.contains('pengajuan pencairan')) {
+          status = 'pending';
+        } else if (titleLower.contains('pengajuan setoran')) {
+          jenisTransaksi = 'setoran';
+          status = 'pending';
+        } else if (titleLower.contains('kirim uang') || (titleLower.contains('transfer') && titleLower.contains('berhasil') && !titleLower.contains('terima'))) {
+          jenisTransaksi = 'transfer_keluar';
+          status = 'approved';
+        } else if (titleLower.contains('terima uang') || (titleLower.contains('terima') && titleLower.contains('transfer'))) {
+          jenisTransaksi = 'transfer_masuk';
+          status = 'approved';
+        }
+        
+        // Extract amount from notification data or message
+        dynamic amount = notifParsed?['amount'] ?? 0;
+        if (amount == 0 || amount == null) {
+          final amtMatch = RegExp(r'Rp\s*[\d.,]+').firstMatch(notifMessage);
+          if (amtMatch != null) {
+            amount = int.tryParse(amtMatch.group(0)!.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+          }
+        }
+
+        // Extract tenor from notification data for pinjaman
+        dynamic tenor = notifParsed?['tenor'] ?? 0;
+        if ((tenor == 0 || tenor == null) && jenisTransaksi == 'pinjaman') {
+          final tenorMatch = RegExp(r'tenor\s*(\d+)\s*bulan', caseSensitive: false).firstMatch(notifMessage);
+          if (tenorMatch != null) {
+            tenor = int.tryParse(tenorMatch.group(1) ?? '') ?? 0;
+          }
+        }
+        
+        // For transfer_masuk, also try to get no_transaksi from notification data
+        final syntheticNoTransaksi = notifParsed?['no_transaksi'] ?? '';
+        
+        final syntheticTx = <String, dynamic>{
+          'id_transaksi': notifParsed?['id_transaksi'] ?? notifParsed?['id'] ?? notifParsed?['application_id'] ?? mulaiId ?? 0,
+          'no_transaksi': syntheticNoTransaksi,
+          'jenis_transaksi': jenisTransaksi,
+          'jumlah': amount,
+          'status': status,
+          'jenis_tabungan': jenisFromNotif ?? '',
+          'keterangan': notifMessage,
+          'created_at': notifTime,
+          if (tenor != null && tenor != 0) 'tenor': tenor,
+          '_isSynthetic': true,
+          if (tabKeluarId != null) '_tabKeluarId': tabKeluarId,
+        };
+        
+        if (kDebugMode) {
+          debugPrint('[NotifikasiPage] Synthetic transaction: $syntheticTx');
+        }
+        
+        Get.to(
+          () => TransactionDetailPage(transaction: syntheticTx),
+          transition: Transition.rightToLeft,
+          duration: const Duration(milliseconds: 300),
+        );
+        return;
       }
     } catch (e) {
       if (kDebugMode) {
@@ -392,10 +571,86 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     }
   }
 
+  String? _extractJenisTabunganFromNotif(
+    Map<String, dynamic> notif,
+    Map<String, dynamic>? notifParsed,
+  ) {
+    // STRATEGY: Always try to extract from the notification MESSAGE first,
+    // because the message is generated by the backend at the time of the actual
+    // transaction and always contains the correct jenis. The data field may
+    // contain stale or wrong values from API lookups.
+    
+    // Step 1: Extract from human-readable message (most reliable source)
+    final msg = (notif['message'] ?? '').toString();
+    if (msg.isNotEmpty) {
+      // Pattern: "dari Tabungan Qurban" or "Tabungan Investasi Anda"
+      // Use a word-boundary approach: capture word(s) between "Tabungan" and a known stop word
+      // IMPORTANT: Use *? (lazy) to avoid capturing stop words like "ditolak" as part of jenis name
+      final match = RegExp(
+        r'(?:dari\s+)?Tabungan\s+([A-Za-z]+(?:\s+[A-Za-z]+)*?)(?:\s+(?:Anda|anda|sebesar|ditolak|disetujui|menunggu|sedang|berhasil|telah|dikirim)|,|\.)',
+        caseSensitive: false,
+      ).firstMatch(msg);
+      if (match != null && match.groupCount >= 1) {
+        final extracted = match.group(1)?.trim();
+        if (extracted != null && extracted.isNotEmpty) {
+          return extracted;
+        }
+      }
+    }
+
+    // Step 2: Try structured data from parsed notification data
+    String? pickFromMap(Map<String, dynamic>? m) {
+      if (m == null) return null;
+      const keys = [
+        'jenis_name',
+        'jenis_tabungan',
+        'jenis',
+        'nama_tabungan',
+        'tabungan',
+        'purpose',
+      ];
+      for (final k in keys) {
+        final v = m[k];
+        if (v != null && v.toString().trim().isNotEmpty) {
+          return v.toString().trim();
+        }
+      }
+      return null;
+    }
+
+    final fromParsed = pickFromMap(notifParsed);
+    if (fromParsed != null) return fromParsed;
+
+    return null;
+  }
+
+  bool _looksLikeTabunganMessage(String message) {
+    final lower = message.toLowerCase();
+    if (!lower.contains('tabungan')) return false;
+    return lower.contains('ditolak') ||
+        lower.contains('disetujui') ||
+        lower.contains('menunggu') ||
+        lower.contains('sedang') ||
+        lower.contains('berhasil') ||
+        lower.contains('sukses');
+  }
+
   /// Fetch complete transaction data from API using mulai_id
-  Future<Map<String, dynamic>?> _fetchCompleteTransactionData(dynamic mulaiId) async {
+  /// For pinjaman notifications, also supports keterangan-based matching
+  /// For transfer notifications, matches by jenis_transaksi + amount
+  Future<Map<String, dynamic>?> _fetchCompleteTransactionData(
+    dynamic mulaiId, {
+    dynamic tabKeluarId,
+    String? notifMessage,
+    bool isPinjaman = false,
+    dynamic pinjamanAmount,
+    bool isTransfer = false,
+    dynamic transferAmount,
+    bool isReceiveTransfer = false,
+    dynamic receiveTransferAmount,
+  }) async {
     try {
-      if (mulaiId == null) return null;
+      if (mulaiId == null && tabKeluarId == null && !isPinjaman && !isTransfer && !isReceiveTransfer) return null;
 
       // Get user ID from preferences
       final user = await EventPref.getUser();
@@ -434,26 +689,142 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
             debugPrint('[NotifikasiPage] Searching through ${transactions.length} transactions for match...');
           }
 
-          // Find matching transaction by id_mulai_nabung or id_transaksi
+          // Find matching transaction by id_mulai_nabung, id_transaksi, 
+          // or tabungan_keluar_id embedded in keterangan
           for (final tx in transactions) {
             final txMulaiId = tx['id_mulai_nabung'];
             final txTransaksiId = tx['id_transaksi'] ?? tx['id_transaksi'];
+            final txKeterangan = (tx['keterangan'] ?? '').toString();
             if (kDebugMode) {
-              debugPrint('[NotifikasiPage]   Checking: id_mulai_nabung=$txMulaiId, id_transaksi=$txTransaksiId vs searching=$mulaiId');
+              debugPrint('[NotifikasiPage]   Checking: id_mulai_nabung=$txMulaiId, id_transaksi=$txTransaksiId vs searching mulaiId=$mulaiId, tabKeluarId=$tabKeluarId');
             }
             
-            // Match either by id_mulai_nabung or id_transaksi
-            if ((txMulaiId != null && txMulaiId == mulaiId) ||
-                (txMulaiId != null && txMulaiId.toString() == mulaiId.toString()) ||
-                (txTransaksiId != null && txTransaksiId == mulaiId) ||
-                (txTransaksiId != null && txTransaksiId.toString() == mulaiId.toString())) {
+            // Match by id_mulai_nabung or id_transaksi ONLY when mulaiId is available
+            // (never compare tabungan_keluar_id against these — different ID spaces)
+            if (mulaiId != null) {
+              if ((txMulaiId != null && txMulaiId == mulaiId) ||
+                  (txMulaiId != null && txMulaiId.toString() == mulaiId.toString()) ||
+                  (txTransaksiId != null && txTransaksiId == mulaiId) ||
+                  (txTransaksiId != null && txTransaksiId.toString() == mulaiId.toString())) {
+                if (kDebugMode) {
+                  debugPrint('[NotifikasiPage] ✓✓✓ MATCHED by ID! Transaction: ${tx['jenis_transaksi']} - Rp ${tx['jumlah']} - Status: ${tx['status']}');
+                }
+                return tx;
+              }
+            }
+            
+            // Match by tabungan_keluar_id embedded in keterangan (e.g., "[tabungan_keluar_id=123]")
+            if (tabKeluarId != null && txKeterangan.contains('[tabungan_keluar_id=$tabKeluarId]')) {
               if (kDebugMode) {
-                debugPrint('[NotifikasiPage] ✓✓✓ MATCHED! Transaction: ${tx['jenis_transaksi']} - Rp ${tx['jumlah']} - Status: ${tx['status']}');
+                debugPrint('[NotifikasiPage] ✓✓✓ MATCHED by keterangan tabungan_keluar_id! Transaction: ${tx['jenis_transaksi']} - Rp ${tx['jumlah']}');
               }
               return tx;
             }
           }
           
+          // FALLBACK for transfer: match by jenis_transaksi + amount (most recent)
+          if (isTransfer && transferAmount != null) {
+            if (kDebugMode) {
+              debugPrint('[NotifikasiPage] Trying transfer amount-based matching (amount=$transferAmount)...');
+            }
+            Map<String, dynamic>? bestTransferMatch;
+            for (final tx in transactions) {
+              final txJenis = (tx['jenis_transaksi'] ?? '').toString().toLowerCase();
+              if (txJenis != 'transfer_keluar') continue;
+              final txAmount = tx['jumlah'];
+              if (txAmount != null && txAmount.toString() == transferAmount.toString()) {
+                // Pick the most recent matching transfer
+                if (bestTransferMatch == null) {
+                  bestTransferMatch = tx;
+                } else {
+                  // Compare by id_transaksi (higher = newer)
+                  final currentId = int.tryParse((bestTransferMatch['id_transaksi'] ?? 0).toString()) ?? 0;
+                  final newId = int.tryParse((tx['id_transaksi'] ?? 0).toString()) ?? 0;
+                  if (newId > currentId) {
+                    bestTransferMatch = tx;
+                  }
+                }
+              }
+            }
+            if (bestTransferMatch != null) {
+              if (kDebugMode) {
+                debugPrint('[NotifikasiPage] ✓✓✓ MATCHED transfer by amount! Transaction: ${bestTransferMatch['jenis_transaksi']} - id=${bestTransferMatch['id_transaksi']}');
+              }
+              return bestTransferMatch;
+            }
+          }
+
+          // FALLBACK for receive transfer (transfer_masuk): match by jenis_transaksi + amount (most recent)
+          if (isReceiveTransfer && receiveTransferAmount != null) {
+            if (kDebugMode) {
+              debugPrint('[NotifikasiPage] Trying receive transfer (transfer_masuk) amount-based matching (amount=$receiveTransferAmount)...');
+            }
+            Map<String, dynamic>? bestReceiveMatch;
+            for (final tx in transactions) {
+              final txJenis = (tx['jenis_transaksi'] ?? '').toString().toLowerCase();
+              if (txJenis != 'transfer_masuk') continue;
+              final txAmount = tx['jumlah'];
+              if (txAmount != null && txAmount.toString() == receiveTransferAmount.toString()) {
+                // Pick the most recent matching transfer_masuk
+                if (bestReceiveMatch == null) {
+                  bestReceiveMatch = tx;
+                } else {
+                  // Compare by id_transaksi (higher = newer)
+                  final currentId = int.tryParse((bestReceiveMatch['id_transaksi'] ?? 0).toString()) ?? 0;
+                  final newId = int.tryParse((tx['id_transaksi'] ?? 0).toString()) ?? 0;
+                  if (newId > currentId) {
+                    bestReceiveMatch = tx;
+                  }
+                }
+              }
+            }
+            if (bestReceiveMatch != null) {
+              if (kDebugMode) {
+                debugPrint('[NotifikasiPage] ✓✓✓ MATCHED receive transfer by amount! Transaction: ${bestReceiveMatch['jenis_transaksi']} - id=${bestReceiveMatch['id_transaksi']}');
+              }
+              return bestReceiveMatch;
+            }
+          }
+
+          // FALLBACK for pinjaman: match by keterangan (notification message = transaction keterangan)
+          if (isPinjaman && notifMessage != null && notifMessage.isNotEmpty) {
+            if (kDebugMode) {
+              debugPrint('[NotifikasiPage] Trying pinjaman keterangan-based matching...');
+            }
+            // Normalize the notification message for comparison
+            final notifMsgNorm = notifMessage.trim().toLowerCase();
+            Map<String, dynamic>? bestMatch;
+            for (final tx in transactions) {
+              final txJenis = (tx['jenis_transaksi'] ?? '').toString().toLowerCase();
+              if (!txJenis.contains('pinjaman')) continue;
+              final txKeterangan = (tx['keterangan'] ?? '').toString().trim().toLowerCase();
+              // Exact keterangan match
+              if (txKeterangan == notifMsgNorm) {
+                bestMatch = tx;
+                break;
+              }
+              // Partial match: notification message is contained in keterangan or vice versa
+              if (txKeterangan.isNotEmpty && (txKeterangan.contains(notifMsgNorm) || notifMsgNorm.contains(txKeterangan))) {
+                bestMatch = tx;
+                break;
+              }
+              // Amount-based fallback: match pinjaman by amount if provided
+              if (pinjamanAmount != null && bestMatch == null) {
+                final txAmount = tx['jumlah'];
+                if (txAmount != null && txAmount.toString() == pinjamanAmount.toString()) {
+                  bestMatch = tx;
+                  // Don't break - keep looking for exact keterangan match
+                }
+              }
+            }
+            if (bestMatch != null) {
+              if (kDebugMode) {
+                debugPrint('[NotifikasiPage] ✓✓✓ MATCHED pinjaman by keterangan! Transaction: ${bestMatch['jenis_transaksi']} - id=${bestMatch['id_transaksi']}');
+              }
+              return bestMatch;
+            }
+          }
+
           if (kDebugMode) {
             debugPrint('[NotifikasiPage] ✗ No matching transaction found in API response for mulaiId=$mulaiId');
           }
@@ -557,11 +928,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
   // Determine notification status from data or title so UI can use status-specific colors/icons.
   String? _getStatusFromNotif(Map<String, dynamic> n) {
     try {
-      final d = n['data'];
+      dynamic d = n['data'];
+      // Parse JSON string data if needed
+      if (d != null && d is String) {
+        try {
+          d = jsonDecode(d);
+        } catch (_) {}
+      }
       if (d != null && d is Map) {
         final s = (d['status'] ?? '').toString().toLowerCase();
         if (s.isNotEmpty) {
-          if (s.contains('menunggu')) return 'menunggu';
+          // Check specific statuses BEFORE generic ones
           if (s.contains('berhasil') ||
               s.contains('sukses') ||
               s.contains('success') ||
@@ -571,18 +948,25 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               s.contains('tolak') ||
               s.contains('rejected'))
             return 'ditolak';
+          if (s.contains('menunggu') || s.contains('pending'))
+            return 'menunggu';
         }
       }
     } catch (_) {}
 
     final title = (n['title'] ?? '').toString().toLowerCase();
+    // IMPORTANT: Check disetujui/ditolak BEFORE pengajuan, because
+    // titles like "Pengajuan Pinjaman Disetujui" contain both words.
+    if (title.contains('disetujui') || title.contains('berhasil'))
+      return 'berhasil';
+    if (title.contains('ditolak')) return 'ditolak';
+    // "Terima Uang" and "Kirim Uang" are always final (berhasil) - transfers are instant
+    if (title.contains('terima uang') || title.contains('kirim uang'))
+      return 'berhasil';
     if (title.contains('pengajuan') ||
         title.contains('menunggu') ||
         title.contains('verifikasi'))
       return 'menunggu';
-    if (title.contains('disetujui') || title.contains('berhasil'))
-      return 'berhasil';
-    if (title.contains('ditolak')) return 'ditolak';
     return null;
   }
 

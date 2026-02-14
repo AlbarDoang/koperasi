@@ -100,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Generate OTP: 6 digit random
         $kode_otp = generateOTP();
 
-        // Hitung waktu kadaluarsa: NOW + 2 menit
-        $expired_at = date('Y-m-d H:i:s', strtotime('+2 minutes'));
+        // Hitung waktu kadaluarsa: NOW + 1 menit
+        $expired_at = date('Y-m-d H:i:s', strtotime('+1 minute'));
 
         // Simpan ke tabel otp_codes sesuai struktur: id, no_wa, kode_otp, expired_at, status, created_at
         // Use international form for OTP table and sending

@@ -50,16 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
 
     
-    // Insert ke database
-    $sql = "INSERT INTO pengguna (nis, nama, no_hp, username, password1, role, status, saldo, created_at) 
-            VALUES ('$id_tabungan', '$nama', '$no_wa', '$username', '$password', '$role', 'pending', 0, NOW())";
-    
-    $result = $connect->query($sql);
+    // Insert ke database — kolom sesuai schema pengguna (status_akun ENUM)
+    // ENUM status_akun: 'draft','submitted','pending','approved','rejected'
+    $hashed_password = password_hash($_POST['password2'], PASSWORD_DEFAULT);
+    $stmt_insert = $connect->prepare("INSERT INTO pengguna (no_hp, kata_sandi, nama_lengkap, status_akun, saldo, created_at, updated_at) VALUES (?, ?, ?, 'pending', 0, NOW(), NOW())");
+    if (!$stmt_insert) {
+        sendJsonResponse(false, "Gagal menyiapkan query: " . $connect->error);
+    }
+    $stmt_insert->bind_param('sss', $no_wa, $hashed_password, $nama);
+    $result = $stmt_insert->execute();
     
     if ($result) {
+        $stmt_insert->close();
         sendJsonResponse(true, "Berhasil menambahkan $role");
     } else {
-        sendJsonResponse(false, "Gagal menambahkan data: " . $connect->error);
+        $err = $stmt_insert->error;
+        $stmt_insert->close();
+        sendJsonResponse(false, "Gagal menambahkan data: " . $err);
     }
     
 } else {

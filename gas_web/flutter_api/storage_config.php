@@ -3,9 +3,8 @@
 // IMPORTANT: directory paths must be outside of htdocs/public
 
 if (!defined('KYC_STORAGE_BASE')) {
-    // Windows path example: C:\gas_storage\verifikasi pengguna
-    // Keep storage outside document root and avoid exposing the absolute path to clients.
-    define('KYC_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'verifikasi pengguna');
+    // Windows path example: C:\laragon\www\gas\gas_storage\verifikasi_pengguna
+    define('KYC_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'laragon' . DIRECTORY_SEPARATOR . 'www' . DIRECTORY_SEPARATOR . 'gas' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'verifikasi_pengguna');
 }
 
 if (!defined('KYC_STORAGE_KTP')) define('KYC_STORAGE_KTP', KYC_STORAGE_BASE . DIRECTORY_SEPARATOR . 'ktp' . DIRECTORY_SEPARATOR);
@@ -118,11 +117,11 @@ function kyc_migrate_root_files_to_user($id_pengguna) {
 // - We will store files in a separate folder and only serve via a proxy endpoint
 // -----------------------------------------------------------------------------
 if (!defined('PROFILE_STORAGE_BASE')) {
-    // Windows example: C:\gas_storage\foto profil
-    define('PROFILE_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'foto profil');
+    // Windows example: C:\laragon\www\gas\gas_storage\foto_profil
+    define('PROFILE_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'laragon' . DIRECTORY_SEPARATOR . 'www' . DIRECTORY_SEPARATOR . 'gas' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'foto_profil');
 }
 if (!defined('PROFILE_STORAGE_PHOTO')) define('PROFILE_STORAGE_PHOTO', PROFILE_STORAGE_BASE . DIRECTORY_SEPARATOR);
-if (!defined('PROFILE_MAX_FILE_SIZE')) define('PROFILE_MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB// Signing secret used to generate short-lived image access tokens (change in production)
+if (!defined('PROFILE_MAX_FILE_SIZE')) define('PROFILE_MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB// Signing secret used to generate short-lived image access tokens (change in production)
 if (!defined('PROFILE_IMAGE_SECRET')) define('PROFILE_IMAGE_SECRET', getenv('PROFILE_IMAGE_SECRET') ?: 'dev-change-this-secret');$PROFILE_ALLOWED_MIMES = ['image/jpeg', 'image/png'];
 
 // Ensure directory exists and is writable
@@ -175,8 +174,8 @@ function profile_path_is_inside_base($path) {
 // - Normalized username: lowercase, spaces -> underscore, remove chars except a-z0-9_
 // -----------------------------------------------------------------------------
 if (!defined('LOAN_STORAGE_BASE')) {
-    // Windows example: C:\gas_storage\foto barang pinjaman kredit
-    define('LOAN_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'foto barang pinjaman kredit' . DIRECTORY_SEPARATOR);
+    // Windows example: C:\laragon\www\gas\gas_storage\foto_barang_pinjaman_kredit
+    define('LOAN_STORAGE_BASE', 'C:' . DIRECTORY_SEPARATOR . 'laragon' . DIRECTORY_SEPARATOR . 'www' . DIRECTORY_SEPARATOR . 'gas' . DIRECTORY_SEPARATOR . 'gas_storage' . DIRECTORY_SEPARATOR . 'foto_barang_pinjaman_kredit' . DIRECTORY_SEPARATOR);
 }
 if (!defined('LOAN_MAX_FILE_SIZE')) define('LOAN_MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB per item photo
 

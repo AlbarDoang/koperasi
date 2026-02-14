@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tabungan/services/notification_service.dart';
 // removed unused imports
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/model/topup_request.dart';
@@ -92,28 +93,14 @@ class _MulaiMenabungPageState extends State<MulaiMenabungPage> {
   Future<void> _confirmTopup() async {
     final text = _amountCtrl.text.trim();
     if (text.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Masukkan jumlah top-up terlebih dahulu',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-      );
+      NotificationService.showError('Masukkan jumlah top-up terlebih dahulu');
       return;
     }
     // strip non-numeric characters before parsing
     final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = int.tryParse(digits);
     if (amount == null || amount <= 0) {
-      Get.snackbar(
-        'Error',
-        'Jumlah tidak valid',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-      );
+      NotificationService.showError('Jumlah tidak valid');
       return;
     }
 
@@ -172,14 +159,7 @@ class _MulaiMenabungPageState extends State<MulaiMenabungPage> {
     // validate based on metode
         // Only allow 'Uang Tunai'
         if (_paymentMethod != 'Uang Tunai') {
-          Get.snackbar(
-            'Info',
-            'Metode pembayaran ini belum tersedia',
-            backgroundColor: Colors.orange.shade700,
-            colorText: Colors.white,
-            snackPosition: SnackPosition.TOP,
-            margin: const EdgeInsets.all(16),
-          );
+          NotificationService.showInfo('Metode pembayaran ini belum tersedia');
           return;
         }
 

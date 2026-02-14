@@ -13,7 +13,7 @@ void main() {
         {"type":"transaksi","title":"Pembayaran Rp25.000 berhasil","message":"Pembayaran berhasil","created_at":"2025-12-26T00:01:00Z","read":false},
         {"type":"topup","title":"Setoran Tabungan Disetujui","message":"Setoran tabungan Anda telah disetujui dan berhasil diproses.","created_at":"2025-12-26T00:02:00Z","read":true},
         {"type":"tabungan","title":"Pencairan Rp 10.000 dari Umroh berhasil","message":"Pencairan berhasil","created_at":"2025-12-26T00:03:00Z","read":false},
-        {"type":"pinjaman_kredit","title":"Pengajuan kredit Anda sedang diverifikasi oleh admin.","message":"Pengajuan sedang diverifikasi","created_at":"2025-12-26T00:04:00Z","read":false}
+        {"type":"pinjaman_kredit","title":"Pengajuan Pinjaman Kredit Diajukan","message":"Pengajuan pinjaman kredit Anda untuk \"TestBarang\" sebesar Rp 500.000 sedang menunggu persetujuan admin.","created_at":"2025-12-26T00:04:00Z","read":false}
       ]'''
     });
 
@@ -44,12 +44,12 @@ void main() {
     expect(afterUnread, equals(beforeUnread - 1));
     // The pinjaman_kredit notification should be displayed as well (may be off-screen so scroll to it)
     await tester.scrollUntilVisible(
-      find.textContaining('Pengajuan kredit Anda sedang diverifikasi oleh admin.'),
+      find.textContaining('Pengajuan Pinjaman Kredit Diajukan'),
       200.0,
       scrollable: find.byType(Scrollable),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Pengajuan kredit Anda sedang diverifikasi oleh admin.'), findsOneWidget);
+    expect(find.textContaining('Pengajuan Pinjaman Kredit Diajukan'), findsOneWidget);
 
 
   });

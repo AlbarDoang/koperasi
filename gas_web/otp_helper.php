@@ -113,16 +113,20 @@ function sendOTPViaFonnte($no_hp, $kode_otp, $token) {
     }
 
     // Persiapan pesan OTP
-    $message = "Kode OTP Anda adalah: $kode_otp (berlaku 2 menit). Jangan berikan kode ini ke siapapun.";
+    $message = "Kode OTP Anda adalah: $kode_otp (berlaku 1 menit). Jangan berikan kode ini ke siapapun.";
 
-    // Payload JSON
-    $payload = array(
+    // Payload form-data (url-encoded, agar Fonnte langsung kirim tanpa queue)
+    $postFields = http_build_query(array(
         'target' => $no_hp,
-        'message' => $message
-    );
-    $payload_json = json_encode($payload);
+        'message' => $message,
+        'countryCode' => '62',
+        'delay' => '0',
+        'typing' => 'false',
+        'connectOnly' => 'true',
+        'preview' => 'false'
+    ));
 
-    // Inisialisasi cURL (Fonnte API: JSON + Authorization header)
+    // Inisialisasi cURL (Fonnte API: url-encoded + Authorization header)
     // Validasi OTP numeric
     if (!ctype_digit((string)$kode_otp)) {
         return array(
@@ -136,10 +140,9 @@ function sendOTPViaFonnte($no_hp, $kode_otp, $token) {
     curl_setopt_array($curl, array(
         CURLOPT_URL => 'https://api.fonnte.com/send',
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_POSTFIELDS => $payload_json,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postFields,
         CURLOPT_HTTPHEADER => array(
-            'Content-Type: application/json',
             'Authorization: ' . $token
         ),
         CURLOPT_TIMEOUT => 30,
@@ -258,17 +261,15 @@ function sendWhatsAppMessage($no_hp, $message, $token) {
         return ['success' => false, 'message' => 'Nomor setelah normalisasi tidak memenuhi format 62...', 'response' => null];
     }
 
-    $payload = array('target' => $no_hp, 'message' => $message);
-    $payload_json = json_encode($payload);
+    $postFields = http_build_query(array('target' => $no_hp, 'message' => $message, 'countryCode' => '62', 'delay' => '0', 'typing' => 'false', 'connectOnly' => 'true', 'preview' => 'false'));
 
     $curl = curl_init();
     curl_setopt_array($curl, array(
         CURLOPT_URL => 'https://api.fonnte.com/send',
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_POSTFIELDS => $payload_json,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postFields,
         CURLOPT_HTTPHEADER => array(
-            'Content-Type: application/json',
             'Authorization: ' . $token
         ),
         CURLOPT_TIMEOUT => 30,

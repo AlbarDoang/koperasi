@@ -86,15 +86,16 @@ try {
         exit();
     }
 
-    // Validasi 2: OTP belum expired
-    if ($otp_record['expired_at'] < $now) {
-        http_response_code(410);
-        echo json_encode(array('status' => false, 'message' => 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.'));
-        exit();
-    }
-
-    // Validasi 3: OTP belum digunakan (status = 'belum')
-    if ($otp_record['status'] !== 'belum') {
+    // Validasi 2: OTP sudah diverifikasi sebelumnya (status = 'terverifikasi')
+    // Tidak perlu cek expired lagi karena sudah diverifikasi di verify_otp_reset.php
+    if ($otp_record['status'] !== 'terverifikasi') {
+        // Jika status masih 'belum', berarti OTP belum diverifikasi
+        if ($otp_record['status'] === 'belum') {
+            http_response_code(401);
+            echo json_encode(array('status' => false, 'message' => 'OTP belum diverifikasi. Silakan verifikasi OTP terlebih dahulu.'));
+            exit();
+        }
+        // Jika status 'terpakai', berarti sudah pernah digunakan reset PIN
         http_response_code(409);
         echo json_encode(array('status' => false, 'message' => 'Kode OTP sudah pernah digunakan. Silakan minta kode baru.'));
         exit();
@@ -154,7 +155,7 @@ try {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - RESET_PIN_SUCCESS: no_hp=' . $no_hp . ' user_id=' . $user['id'] . PHP_EOL, FILE_APPEND);
 
     http_response_code(200);
-    echo json_encode(array('status' => true, 'message' => 'PIN berhasil direset. Silakan login dan gunakan PIN baru Anda.'));
+    echo json_encode(array('success' => true, 'status' => true, 'message' => 'PIN berhasil direset. Silakan login dan gunakan PIN baru Anda.'));
 
 } catch (Exception $e) {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - RESET_PIN_ERROR: ' . $e->getMessage() . PHP_EOL, FILE_APPEND);

@@ -3,6 +3,9 @@
 // Perform admin actions: approve/reject/cancel (no edit/delete). Records to pinjaman_kredit_log and updates approved_by/approved_at as needed
 
 declare(strict_types=1);
+
+// Set PHP timezone to WIB so date() returns correct local time
+date_default_timezone_set('Asia/Jakarta');
 ini_set('display_errors', '0');
 error_reporting(0);
 header('Content-Type: application/json; charset=utf-8');
@@ -149,16 +152,19 @@ if ($newStatus === 'approved') {
         if ($r2 && ($app = mysqli_fetch_assoc($r2))) {
             $userId = intval($app['id_pengguna']);
             $amount = floatval($app['pokok']);
-            $title = 'Pengajuan pinjaman disetujui';
-            $msg = 'Pengajuan pinjaman kredit untuk "' . ($app['nama_barang'] ?? '') . '" sebesar ' . number_format($amount,0,',','.') . ' telah disetujui.';
-            try { @safe_create_notification($con, $userId, 'pinjaman_kredit', $title, $msg, json_encode(['application_id' => $id, 'amount' => $amount])); } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " NOTIF_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
-            // Insert into transaksi table (jenis_transaksi=pinjaman_kredit_approved)
+            $title = 'Pengajuan Pinjaman Kredit Disetujui';
+            $msg = 'Pengajuan pinjaman kredit untuk "' . ($app['nama_barang'] ?? '') . '" sebesar Rp ' . number_format($amount,0,',','.') . ' disetujui, silahkan tunggu informasi lebih lanjut dari admin.';
+            try { @safe_create_notification($con, $userId, 'pinjaman_kredit', $title, $msg, json_encode(['application_id' => $id, 'amount' => $amount, 'status' => 'berhasil'])); } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " NOTIF_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
+            // Insert into transaksi table (jenis_transaksi=pinjaman_kredit)
             $txPayload = [
-                'id_tabungan' => $userId,
-                'jenis_transaksi' => 'pinjaman_kredit_approved',
+                'id_pengguna' => $userId,
+                'jenis_transaksi' => 'pinjaman_kredit',
                 'jumlah' => $amount,
+                'saldo_sebelum' => 0,
+                'saldo_sesudah' => 0,
                 'keterangan' => $msg,
-                'tanggal' => date('Y-m-d H:i:s')
+                'tanggal' => date('Y-m-d H:i:s'),
+                'status' => 'approved'
             ];
             try { record_transaction($con, $txPayload); } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " TRANSACTION_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
         }
@@ -173,10 +179,26 @@ if ($newStatus === 'approved') {
         if ($r2 && ($app = mysqli_fetch_assoc($r2))) {
             $userId = intval($app['id_pengguna']);
             $amount = floatval($app['pokok'] ?? 0);
-            $title = 'Pengajuan pinjaman ditolak';
+            $title = 'Pengajuan Pinjaman Kredit Ditolak';
             $reasonText = ($reason && trim($reason) !== '') ? $reason : 'Tidak ada alasan';
-            $msg = ($app['nama_barang'] ? ('Pengajuan pinjaman Anda untuk "' . $app['nama_barang'] . '" sebesar ' . ($amount ? number_format($amount,0,',','.') . ' ' : '') . 'telah ditolak oleh admin. ') : 'Pengajuan pinjaman Anda telah ditolak oleh admin. ') . 'Alasan: ' . $reasonText;
-            try { @safe_create_notification($con, $userId, 'pinjaman_kredit', $title, $msg, json_encode(['application_id' => $id, 'amount' => $amount])); } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " NOTIF_REJECT_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
+            $msg = ($app['nama_barang'] ? ('Pengajuan pinjaman kredit Anda untuk "' . $app['nama_barang'] . '" sebesar ' . ($amount ? 'Rp ' . number_format($amount,0,',','.') . ' ' : '') . 'ditolak, silahkan hubungi admin untuk informasi lebih lanjut. ') : 'Pengajuan pinjaman kredit Anda ditolak, silahkan hubungi admin untuk informasi lebih lanjut. ') . 'Alasan: ' . $reasonText;
+            try { @safe_create_notification($con, $userId, 'pinjaman_kredit', $title, $msg, json_encode(['application_id' => $id, 'amount' => $amount, 'status' => 'ditolak'])); } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " NOTIF_REJECT_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
+
+            // INSERT into transaksi table for rejected pinjaman_kredit
+            try {
+                require_once __DIR__ . '/../../flutter_api/transaksi_helper.php';
+                $txPayload = [
+                    'id_pengguna' => $userId,
+                    'jenis_transaksi' => 'pinjaman_kredit',
+                    'jumlah' => $amount,
+                    'saldo_sebelum' => 0,
+                    'saldo_sesudah' => 0,
+                    'keterangan' => $msg,
+                    'tanggal' => date('Y-m-d H:i:s'),
+                    'status' => 'rejected'
+                ];
+                @record_transaction($con, $txPayload);
+            } catch (Throwable $_t) { @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " TX_REJECT_ERR id={$id} err=" . $_t->getMessage() . "\n", FILE_APPEND); }
         }
     } catch (Throwable $_e) {
         @file_put_contents(__DIR__ . '/admin_action_err.log', date('c') . " PINJAMAN_REJECT_NOTIF_ERR id={$id} err=" . $_e->getMessage() . "\n", FILE_APPEND);

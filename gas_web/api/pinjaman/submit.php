@@ -426,7 +426,7 @@ if ($affected > 0) {
         @include_once __DIR__ . '/../../flutter_api/notif_helper.php';
         if (function_exists('safe_create_notification')) {
             try {
-                $notif_id = @safe_create_notification($con, (int)$id_pengguna, 'pinjaman', 'Pengajuan pinjaman sedang diverifikasi', 'Pengajuan pinjaman sebesar ' . ('Rp ' . number_format($total_int, 0, ',', '.')) . ' untuk tenor ' . intval($tenor_val) . ' bulan sedang diproses oleh admin.', json_encode(['application_id' => (int)$insertId]));
+                $notif_id = @safe_create_notification($con, (int)$id_pengguna, 'pinjaman', 'Pengajuan Pinjaman Diajukan', 'Pengajuan Pinjaman sebesar ' . ('Rp ' . number_format($total_int, 0, ',', '.')) . ' untuk tenor ' . intval($tenor_val) . ' bulan sedang menunggu persetujuan admin.', json_encode(['application_id' => (int)$insertId, 'amount' => (int)$total_int, 'tenor' => intval($tenor_val), 'status' => 'menunggu']));
             } catch (Throwable $_e) {
                 @file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " NOTIF FAILED: " . $_e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
             }

@@ -5,6 +5,9 @@ import 'package:tabungan/controller/forgot_pin_controller.dart';
 class ForgotPinResetPin extends GetView<ForgotPinController> {
   const ForgotPinResetPin({Key? key}) : super(key: key);
 
+  // Warna orange header app
+  static const Color _headerOrange = Color(0xFFFF4C00);
+
   @override
   Widget build(BuildContext context) {
     final RxBool isPinVisible = false.obs;
@@ -16,12 +19,14 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               const SizedBox(height: 20),
               Text(
                 'Buat PIN Baru',
@@ -45,6 +50,8 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                   maxLength: 6,
                   decoration: InputDecoration(
                     labelText: 'PIN Baru',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    floatingLabelStyle: const TextStyle(color: _headerOrange),
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -61,6 +68,10 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: Colors.grey[300]!),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _headerOrange, width: 2),
+                    ),
                   ),
                 ),
               ),
@@ -73,6 +84,8 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                   maxLength: 6,
                   decoration: InputDecoration(
                     labelText: 'Konfirmasi PIN',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    floatingLabelStyle: const TextStyle(color: _headerOrange),
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -89,6 +102,10 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: Colors.grey[300]!),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _headerOrange, width: 2),
+                    ),
                   ),
                 ),
               ),
@@ -100,7 +117,7 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                     onPressed: controller.isLoadingResetPin.value ? null : () => controller.resetPin(),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: Colors.orange,
+                      backgroundColor: _headerOrange,
                       disabledBackgroundColor: Colors.grey[300],
                     ),
                     child: controller.isLoadingResetPin.value
@@ -123,27 +140,12 @@ class ForgotPinResetPin extends GetView<ForgotPinController> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    controller.currentStep.value = 1;
-                    controller.pinBaru.value = '';
-                    controller.pinKonfirmasi.value = '';
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'Kembali',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

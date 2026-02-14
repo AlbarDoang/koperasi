@@ -6,7 +6,7 @@ import 'package:tabungan/model/transfer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:tabungan/config/api.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/event/event_pref.dart';
 import 'package:tabungan/utils/currency_format.dart';
 import 'package:tabungan/controller/c_user.dart';
@@ -20,21 +20,10 @@ import 'package:tabungan/login.dart';
 
 // import 'package:tabungan/widget/info.dart'; // unused
 class EventDB {
-  // Safe notification helpers: prefer CustomToast when a BuildContext is available,
-  // otherwise fall back to Get.snackbar so calls don't throw when Get.context is null.
-  static void _showSuccess(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.success(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Sukses', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        // last resort: print to console in debug mode
-        if (kDebugMode) debugPrint('SUCCESS: $message');
-      }
-    }
-  }
+  // Notification helpers – delegate to NotificationService (no context needed).
+  static void _showSuccess(String message, [BuildContext? ctx]) =>
+      NotificationService.showSuccess(message);
+
 
   // Change password (user initiated)
   static Future<bool> changePassword(
@@ -181,46 +170,14 @@ class EventDB {
     return false;
   }
 
-  static void _showError(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.error(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Error', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('ERROR: $message');
-      }
-    }
-  }
+  static void _showError(String message, [BuildContext? ctx]) =>
+      NotificationService.showError(message);
 
-  static void _showInfo(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.info(contextToUse, message);
-    } else {
-      try {
-        Get.snackbar('Info', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('INFO: $message');
-      }
-    }
-  }
+  static void _showInfo(String message, [BuildContext? ctx]) =>
+      NotificationService.showInfo(message);
 
-  // Show a warning-style toast (orange) to indicate action required / attention
-  static void _showWarning(String message, [BuildContext? ctx]) {
-    final contextToUse = ctx ?? Get.context;
-    if (contextToUse != null) {
-      CustomToast.warning(contextToUse, message);
-    } else {
-      try {
-        // use a neutral title so snackbar doesn't look like an error
-        Get.snackbar('Perhatian', message, snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        if (kDebugMode) debugPrint('WARNING: $message');
-      }
-    }
-  }
+  static void _showWarning(String message, [BuildContext? ctx]) =>
+      NotificationService.showWarning(message);
 
   // Helper: safely parse JSON response and avoid FormatException
   static dynamic _parseJsonSafeFromResponse(
@@ -245,6 +202,7 @@ class EventDB {
     String nohp,
     String pass, {
     bool showSuccessToast = true,
+    BuildContext? ctx,
   }) async {
     Map<String, dynamic>? result;
     try {
@@ -294,7 +252,7 @@ class EventDB {
 
           // NOTE: Success toasts are suppressed by callers when they need a single, contextual notification
           if (showSuccessToast) {
-            _showSuccess(message ?? 'Login Berhasil');
+            _showSuccess(message ?? 'Login Berhasil', ctx);
           }
 
           result = {
@@ -303,9 +261,13 @@ class EventDB {
             'next_page': responseBody['next_page'] ?? 'dashboard',
           };
         } else {
-          _showError(
-            message ?? 'Login gagal. Pastikan nomor HP dan password benar.',
-          );
+          // Status 200 but success is false
+          // Return error result instead of showing notification
+          result = {
+            'error': true,
+            'message': message ?? 'Login gagal. Pastikan nomor HP dan password benar.',
+            'notif_type': 'error',
+          };
         }
       } else {
         // Prefer server-provided JSON message (when available) and fall back to a generic error
@@ -323,20 +285,27 @@ class EventDB {
           message =
               'Terjadi kesalahan pada server (kode ${response.statusCode}). Silakan coba lagi.';
         }
-        // Differentiate notification types: use server hint if available, else determine by status code
-        if (notifType == 'warning') {
-          _showWarning(message);
-        } else if (response.statusCode == 404) {
-          _showWarning(message);
-        } else {
-          _showError(message);
-        }
+        // Return error result instead of showing notification
+        // Let the caller (login.dart) handle showing the notification with proper context
+        result = {
+          'error': true,
+          'message': message,
+          'notif_type': notifType,
+        };
       }
     } catch (e) {
       if (e.toString().contains('timeout')) {
-        _showError('⏱️ Request timeout - Server tidak merespons');
+        result = {
+          'error': true,
+          'message': '⏱️ Request timeout - Server tidak merespons',
+          'notif_type': 'error',
+        };
       } else {
-        _showError('❌ Error: ${e.toString()}');
+        result = {
+          'error': true,
+          'message': '❌ Error: ${e.toString()}',
+          'notif_type': 'error',
+        };
       }
       if (kDebugMode) debugPrint('Error: $e');
     }
@@ -473,7 +442,7 @@ class EventDB {
   }
 
   //Update Biodata Berdasarkan ID
-  static Future<void> updateBiodata(
+  static Future<bool> updateBiodata(
     String id_tabungan,
     String role,
     String nama,
@@ -488,8 +457,9 @@ class EventDB {
     String email,
     String nama_ibu,
     String nama_ayah,
-    String no_ortu,
-  ) async {
+    String no_ortu, {
+    bool showToast = true,
+  }) async {
     try {
       var response = await http.post(
         Uri.parse('${Api.updateBiodata}'),
@@ -513,8 +483,8 @@ class EventDB {
       );
       if (response.statusCode == 200) {
         var responseBody = jsonDecode(response.body);
-        if (responseBody['success']) {
-          _showSuccess('Berhasil Update Biodata');
+        if (responseBody['success'] == true) {
+          if (showToast) _showSuccess('Berhasil Update Biodata');
 
           // Update stored user in SharedPreferences so app stays logged in
           try {
@@ -532,6 +502,8 @@ class EventDB {
                 status_akun: current.status_akun,
                 created_at: current.created_at,
                 saldo: current.saldo,
+                foto: current.foto,
+                fotoUpdatedAt: current.fotoUpdatedAt,
               );
               await EventPref.saveUser(updated);
               try {
@@ -546,16 +518,24 @@ class EventDB {
                 'Failed to update local pref after biodata update: $e',
               );
           }
+          return true;
         } else {
-          _showError('Gagal Update Biodata');
+          final errorMsg = responseBody['message'] ?? 'Gagal Update Biodata';
+          if (showToast) _showError(errorMsg);
+          if (kDebugMode) debugPrint('updateBiodata server error: $errorMsg');
+          return false;
         }
       } else {
-        _showError('Request Gagal');
+        if (showToast) _showError('Request Gagal (${response.statusCode})');
+        if (kDebugMode) debugPrint('updateBiodata HTTP error: ${response.statusCode} ${response.body}');
+        return false;
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint(e.toString());
+        debugPrint('updateBiodata exception: $e');
       }
+      if (showToast) _showError('Gagal Update Biodata: $e');
+      return false;
     }
   }
 
@@ -1166,7 +1146,8 @@ class EventDB {
   //   return reason;
   // }
 
-  static Future<String> addTransfer(
+  /// Returns a Map with keys: 'message' (String), 'success' (bool), 'id_transaksi' (int?)
+  static Future<Map<String, dynamic>> addTransfer(
     String id_tabungan,
     String id_target,
     String pin,
@@ -1174,6 +1155,8 @@ class EventDB {
     String nominal,
   ) async {
     String reason = 'Transfer Gagal';
+    bool success = false;
+    int? idTransaksi;
 
     try {
       var response = await http.post(
@@ -1199,10 +1182,16 @@ class EventDB {
           if (responseBody['success'] == true && responseBody['data'] != null) {
             // Server reports success
             reason = 'Transfer Berhasil';
+            success = true;
+
+            // Extract id_transaksi from response
+            final data = responseBody['data'];
+            if (data is Map && data.containsKey('id_transaksi')) {
+              idTransaksi = int.tryParse(data['id_transaksi'].toString());
+            }
 
             // Update local cached user saldo if server returns the new balance
             try {
-              final data = responseBody['data'];
               if (data is Map && data.containsKey('saldo_baru')) {
                 final sb =
                     double.tryParse(data['saldo_baru'].toString()) ?? 0.0;
@@ -1240,7 +1229,11 @@ class EventDB {
       reason = 'Terjadi kesalahan: ${e.toString()}';
     }
 
-    return reason;
+    return {
+      'message': reason,
+      'success': success,
+      'id_transaksi': idTransaksi,
+    };
   }
 
   /// =========================================================================
@@ -1273,8 +1266,9 @@ class EventDB {
   /// =========================================================================
   static Future<String?> uploadFotoProfil(
     String idPengguna,
-    File imageFile,
-  ) async {
+    File imageFile, {
+    bool showToast = true,
+  }) async {
     try {
       // ===== STEP 1: VALIDASI INPUT =====
       // Cek ID pengguna tidak kosong
@@ -1318,11 +1312,11 @@ class EventDB {
         debugPrint('   File: ${imageFile.path}');
       }
 
-      // Gunakan timeout 30 detik untuk request
+      // Gunakan timeout 60 detik untuk request (mendukung upload file hingga 10MB)
       final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 30),
+        const Duration(seconds: 60),
         onTimeout: () {
-          throw TimeoutException('Upload timeout setelah 30 detik');
+          throw TimeoutException('Upload timeout setelah 60 detik');
         },
       );
 
@@ -1454,7 +1448,7 @@ class EventDB {
         }
       }
       // ===== STEP 8: TAMPILKAN PESAN SUKSES =====
-      _showSuccess('Foto profil berhasil diperbarui');
+      if (showToast) _showSuccess('Foto profil berhasil diperbarui');
 
       if (kDebugMode) {
         debugPrint('✅ Upload Foto Profil Sukses');
@@ -1830,7 +1824,9 @@ class EventDB {
               body['message']?.toString() ?? 'Tidak ada pesan dari server';
 
           if (ok) {
-            _showSuccess(message);
+            _showSuccess(
+              'Pengajuan pencairan tabungan berhasil, menunggu persetujuan admin',
+            );
 
             // If server provides a saldo value, immediately update local stored user and in-memory CUser
             try {

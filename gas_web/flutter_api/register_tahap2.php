@@ -1,4 +1,8 @@
 <?php
+// Aktifkan error reporting untuk debug
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // ============================================================================
 // FILE: register_tahap2.php
 // FUNGSI: Menerima file foto KTP dan selfie dari Flutter, simpan ke folder

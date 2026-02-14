@@ -29,6 +29,14 @@ Options -Indexes
 # Set default character set
 AddDefaultCharset UTF-8
 
+# PHP upload limits untuk foto profil (max 10MB)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 12M
+    php_value post_max_size 14M
+    php_value max_execution_time 120
+    php_value max_input_time 120
+</IfModule>
+
 # Compress output untuk performance
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json

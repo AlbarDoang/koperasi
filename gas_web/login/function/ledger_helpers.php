@@ -509,7 +509,7 @@ function create_withdrawal_transaction_record($con, $user_id, $jenis_id, $amount
             'jumlah_keluar' => $amount,
             'jumlah' => $amount,
             'status' => $statusForTx,  // Add explicit status for riwayat filter
-            'keterangan' => $ketDisplay . ': ' . $note,  // User-friendly keterangan with original note
+            'keterangan' => $ketDisplay . ' [tabungan_keluar_id=' . $tab_keluar_id . ']: ' . $note,  // Include tabungan_keluar_id for accurate jenis lookup
             'tanggal' => date('Y-m-d H:i:s'),  // Include time in Indonesia timezone (UTC+7)
             'created_at' => date('Y-m-d H:i:s'),
             'petugas' => 'admin_approval',
@@ -556,6 +556,12 @@ function create_withdrawal_transaction_record($con, $user_id, $jenis_id, $amount
 
         $txId = intval($con->insert_id);
         @file_put_contents(__DIR__ . '/../../flutter_api/saldo_audit.log', date('c') . " CREATE_WITHDRAWAL_TX_SUCCESS user={$user_id} jenis={$jenis_id} amt={$amount} tx_id={$txId}\n", FILE_APPEND);
+
+        // Generate no_transaksi
+        if ($txId > 0) {
+            require_once __DIR__ . '/../../flutter_api/no_transaksi_helper.php';
+            generate_no_transaksi($con, $txId, 'penarikan');
+        }
 
         return $txId;
 

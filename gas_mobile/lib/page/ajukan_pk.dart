@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -225,7 +226,7 @@ class _AjukanPkPageState extends State<AjukanPkPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => const Dashboard(bannerMessage: 'Pengajuan berhasil dikirim!'),
+              builder: (_) => const Dashboard(bannerMessage: 'Pengajuan Pinjaman Kredit Berhasil'),
             ),
           );
           return;
@@ -233,7 +234,13 @@ class _AjukanPkPageState extends State<AjukanPkPage> {
           _showTopSnackBar('Server: ${data['message'] ?? data['error'] ?? 'Gagal mengirim'}', type: _NotifType.error);
         }
       } else if (resp.statusCode >= 400 && resp.statusCode < 500) {
-        _showTopSnackBar('Request error: ${data['message'] ?? data['error'] ?? 'Bad request (HTTP ${resp.statusCode})'}', type: _NotifType.error);
+        final errorMessage = '${data['message'] ?? data['error'] ?? 'Bad request (HTTP ${resp.statusCode})'}';
+        final lowerMessage = errorMessage.toLowerCase();
+        final isDpPriceError = lowerMessage.contains('dp harus lebih kecil dari harga barang') ||
+            lowerMessage.contains('dp harus lebih rendah dari harga barang');
+        if (!isDpPriceError) {
+          _showTopSnackBar('Request error: $errorMessage', type: _NotifType.error);
+        }
       } else {
         _showTopSnackBar('Terjadi kesalahan server (HTTP ${resp.statusCode}). Silakan coba lagi nanti.', type: _NotifType.error);
       }
@@ -250,87 +257,17 @@ class _AjukanPkPageState extends State<AjukanPkPage> {
     String message, {
     _NotifType type = _NotifType.warning,
   }) {
-    final overlay = Overlay.of(context);
-
-    final topPadding = MediaQuery.of(context).padding.top + 8.0;
-
-    late final OverlayEntry overlayEntry;
-    overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: topPadding,
-        left: 16,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: AnimatedOpacity(
-            opacity: 1.0,
-            duration: const Duration(milliseconds: 200),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: () {
-                  switch (type) {
-                    case _NotifType.success:
-                      return const Color(0xFF0B8F3A); // green
-                    case _NotifType.error:
-                      return const Color(0xFFD9392A); // red
-                    case _NotifType.warning:
-                      return const Color(0xFFFF6B00); // orange/warning
-                  }
-                }(),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(() {
-                    switch (type) {
-                      case _NotifType.success:
-                        return Icons.check_circle_outline;
-                      case _NotifType.error:
-                        return Icons.error_outline;
-                      case _NotifType.warning:
-                        return Icons.info_outline;
-                    }
-                  }(), color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      overlayEntry.remove();
-                    },
-                    child: const Text(
-                      'Tutup',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    overlay.insert(overlayEntry);
-
-    // Auto remove after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      try {
-        overlayEntry.remove();
-      } catch (_) {}
-    });
+    switch (type) {
+      case _NotifType.success:
+        NotificationService.showSuccess(message);
+        break;
+      case _NotifType.error:
+        NotificationService.showError(message);
+        break;
+      case _NotifType.warning:
+        NotificationService.showWarning(message);
+        break;
+    }
   }
 
   // Show a dialog with options to retry using emulator/LAN base URL

@@ -72,11 +72,16 @@ if (!preg_match('/^62\d{8,13}$/', $target_clean)) {
     exit(1);
 }
 
-// Siapkan payload
-$payload = json_encode([
+// Siapkan payload url-encoded (agar Fonnte langsung kirim tanpa queue)
+$postFields = http_build_query(array(
     'target' => $target_clean,
-    'message' => $message
-]);
+    'message' => $message,
+    'countryCode' => '62',
+    'delay' => '0',
+    'typing' => 'false',
+    'connectOnly' => 'true',
+    'preview' => 'false'
+));
 
 // cURL request ke Fonnte
 $curl = curl_init();
@@ -84,10 +89,9 @@ curl_setopt_array($curl, array(
     CURLOPT_URL => 'https://api.fonnte.com/send',
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_POSTFIELDS => $postFields,
     CURLOPT_HTTPHEADER => array(
-        'Authorization: ' . $fonnte_token,
-        'Content-Type: application/json'
+        'Authorization: ' . $fonnte_token
     ),
     CURLOPT_TIMEOUT => 30,
     CURLOPT_CONNECTTIMEOUT => 10,

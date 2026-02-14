@@ -22,6 +22,7 @@ class Profil extends StatefulWidget {
 
 class _ProfilState extends State<Profil> with WidgetsBindingObserver {
   final CUser _cUser = Get.find<CUser>();
+  bool _isRefreshingPhoto = false; // prevent multiple refresh calls
 
   @override
   void initState() {
@@ -80,7 +81,7 @@ class _ProfilState extends State<Profil> with WidgetsBindingObserver {
 
       // 🔥 AppBar diganti pakai OrangeHeader
       appBar: OrangeHeader(
-        title: "Halaman Profil",
+          title: "Profil",
         onBackPressed: () => Navigator.of(context).maybePop(),
       ),
 
@@ -120,10 +121,29 @@ class _ProfilState extends State<Profil> with WidgetsBindingObserver {
                                 key: ValueKey(imageUrl),
                                 fit: BoxFit.cover,
                                 gaplessPlayback: true,
-                                errorBuilder: (c, e, s) => Image.network('https://tabungan.boash.sch.id/assets/images/user.png', fit: BoxFit.cover),
+                                headers: const {'Accept': 'image/*'},
+                                errorBuilder: (c, e, s) {
+                                  // URL might be expired, trigger background refresh (once)
+                                  if (!_isRefreshingPhoto) {
+                                    _isRefreshingPhoto = true;
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      getUser();
+                                      Future.delayed(const Duration(seconds: 5), () {
+                                        _isRefreshingPhoto = false;
+                                      });
+                                    });
+                                  }
+                                  return Container(
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.person, size: 40, color: Colors.grey),
+                                  );
+                                },
                               );
                             }
-                            return Image.network('https://tabungan.boash.sch.id/assets/images/user.png', fit: BoxFit.cover);
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.person, size: 40, color: Colors.grey),
+                            );
                           }),
                         ),
                       ),

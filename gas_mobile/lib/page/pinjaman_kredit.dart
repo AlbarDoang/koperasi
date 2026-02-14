@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/page/sk_gaspinjam.dart';
 import 'package:tabungan/page/ajukan_pk.dart';
 import 'package:tabungan/page/review_pk.dart';
@@ -738,9 +739,7 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
     final tenor = _selectedTenor;
 
     if (name.isEmpty || price <= 0 || tenor <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lengkapi nama barang, harga, dan tenor')),
-      );
+      NotificationService.showError('Lengkapi nama barang, harga, dan tenor');
       return;
     }
 
@@ -814,12 +813,8 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Pengajuan untuk $name berhasil dikirim',
-                            ),
-                          ),
+                        NotificationService.showSuccess(
+                          'Pengajuan untuk $name berhasil dikirim',
                         );
                         // reset fields
                         _itemNameController.clear();
@@ -896,6 +891,12 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
                 final price = _getParsed(_priceController.text);
                 final dp = _getParsed(_dpController.text);
                 final tenor = _selectedTenor;
+                if (dp > price) {
+                  NotificationService.showWarningYellow(
+                    'DP harus lebih kecil dari harga barang',
+                  );
+                  return;
+                }
                 // ensure simulation up to date
                 _calculateSimulation();
 

@@ -46,8 +46,11 @@
 
     // Fallback to existing siswa logic
     if (isset($_POST['soft']) && $_POST['soft'] == '1') {
-        $sql = "UPDATE pengguna SET status='nonaktif' WHERE id_pengguna='$id_user'";
-        $result = $connect->query($sql);
+        // Soft delete: set status_akun ke 'rejected' (ENUM: draft,submitted,pending,approved,rejected)
+        $stmt_soft = $connect->prepare("UPDATE pengguna SET status_akun = 'rejected' WHERE id = ?");
+        $stmt_soft->bind_param('i', $id_user);
+        $result = $stmt_soft->execute();
+        $stmt_soft->close();
         echo json_encode(array("success" => (bool)$result));
         exit();
     }

@@ -127,21 +127,7 @@ class ForgotPasswordResetPassword extends GetView<ForgotPasswordController> {
               ),
               const SizedBox(height: 20),
               SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    controller.currentStep.value = 1;
-                    controller.passwordBaru.value = '';
-                    controller.passwordKonfirmasi.value = '';
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'Kembali',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+                // ...existing code...
               ),
             ],
           ),

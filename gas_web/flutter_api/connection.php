@@ -5,9 +5,8 @@
  */
 
 // Set timezone ke Indonesia (UTC+7) - CRITICAL untuk waktu transaksi yang konsisten
-if (!ini_get('date.timezone')) {
-    date_default_timezone_set('Asia/Jakarta');
-}
+// Always force Asia/Jakarta regardless of php.ini setting
+date_default_timezone_set('Asia/Jakarta');
 
 // Include centralized database configuration
 require_once dirname(__DIR__) . '/config/database.php';

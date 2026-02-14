@@ -29,7 +29,7 @@ class _UbahPinPageState extends State<UbahPinPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: OrangeHeader(title: "Ubah PIN Keamanan"),
+      appBar: OrangeHeader(title: "Ubah PIN Transaksi"),
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Padding(
         padding: const EdgeInsets.all(20),

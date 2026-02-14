@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ip=$_SERVER['REMOTE_ADDR'];
     }
     
-    $tanggal = date('Y-m-d');
+    $tanggal = date('Y-m-d H:i:s');
     $no_transfer = 'TF-' . date('YmdHis');
     
     // Get input
@@ -221,24 +221,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt2->close();
             throw new Exception('Terjadi kesalahan pada server (insert transaksi keluar)');
         }
+        // Capture the auto-increment id_transaksi for the sender's record
+        $id_transaksi_keluar = $connect->insert_id;
         $stmt2->close();
+
+        // Generate no_transaksi for transfer_keluar (will be shared with transfer_masuk)
+        require_once __DIR__ . '/no_transaksi_helper.php';
+        $no_transaksi_transfer = generate_no_transaksi($connect, $id_transaksi_keluar, 'transfer_keluar');
         
         // 9. Insert ke transaksi (untuk histori penerima - masuk)
         $saldo_sebelum_penerima = $saldo_penerima;
         $saldo_sesudah_penerima = $saldo_penerima + $nominal;
+        // Build receiver-specific keterangan (different from sender's keterangan)
+        $nominal_fmt_ket = 'Rp ' . number_format($nominal, 0, ',', '.');
+        $note_ket = trim($keterangan);
+        $note_ket_label = $note_ket !== '' ? $note_ket : '-';
+        $keterangan_penerima = "Terima Uang $nominal_fmt_ket dari ({$nama_pengirim}), Catatan: {$note_ket_label}";
         $stmt3 = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_masuk', ?, ?, ?, ?, ?, 'approved')");
         if (!$stmt3) {
             error_log('add_transfer.php: prepare failed transaksi masuk: ' . $connect->error);
             throw new Exception('Terjadi kesalahan pada server (prepare transaksi masuk)');
         }
-        $stmt3->bind_param('iddsss', $db_id_penerima, $nominal, $saldo_sebelum_penerima, $saldo_sesudah_penerima, $keterangan, $tanggal);
+        $stmt3->bind_param('iddsss', $db_id_penerima, $nominal, $saldo_sebelum_penerima, $saldo_sesudah_penerima, $keterangan_penerima, $tanggal);
         $ok = $stmt3->execute();
         if (!$ok) {
             error_log('add_transfer.php: execute failed transaksi masuk: ' . $stmt3->error);
             $stmt3->close();
             throw new Exception('Terjadi kesalahan pada server (insert transaksi masuk)');
         }
+        $id_transaksi_masuk = $connect->insert_id;
         $stmt3->close();
+
+        // Set the SAME no_transaksi on transfer_masuk (paired with transfer_keluar)
+        if ($no_transaksi_transfer) {
+            set_no_transaksi($connect, $id_transaksi_masuk, $no_transaksi_transfer);
+        }
         // 10. Insert notification for penerima so recipient receives an in-app notification
         // Create table if doesn't exist (non-fatal)
         $create_notif_table = "CREATE TABLE IF NOT EXISTS notifikasi (
@@ -255,9 +272,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Prepare notification content
         $nominal_formatted = 'Rp ' . number_format($nominal, 0, ',', '.');
-        $title_notif = 'Transfer Masuk';
-        $message_notif = "Anda menerima transfer $nominal_formatted dari {$nama_pengirim}.";
-        $data_json = json_encode(array('no_transfer' => $no_transfer, 'nama_pengirim' => $nama_pengirim, 'nominal' => $nominal));
+        $title_notif = 'Terima Uang';
+        $note_clean = trim($keterangan);
+        $note_label = $note_clean !== '' ? $note_clean : '-';
+        $message_notif = "Terima Uang $nominal_formatted dari ({$nama_pengirim}), Catatan: {$note_label}";
+        $data_json = json_encode(array(
+            'no_transfer' => $no_transfer,
+            'nama_pengirim' => $nama_pengirim,
+            'nominal' => $nominal,
+            'keterangan' => $note_clean,
+            'id_transaksi' => (int)$id_transaksi_masuk,
+            'no_transaksi' => $no_transaksi_transfer ? $no_transaksi_transfer : '',
+            'status' => 'berhasil',
+            'amount' => $nominal,
+        ));
 
         // Use safe notification helper to filter and dedupe
         require_once __DIR__ . '/notif_helper.php';
@@ -278,6 +306,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "message" => "Transfer berhasil",
             "data" => array(
                 "no_transfer" => $no_transfer,
+                "no_transaksi" => $no_transaksi_transfer ? $no_transaksi_transfer : '',
+                "id_transaksi" => (int)$id_transaksi_keluar,
                 "nama_pengirim" => $nama_pengirim,
                 "nama_penerima" => $nama_penerima,
                 "nominal" => $nominal,

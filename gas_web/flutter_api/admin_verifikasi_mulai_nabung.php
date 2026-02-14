@@ -285,6 +285,9 @@ try {
                                 if ($trans_stmt->execute()) {
                                     $new_trans_id = $connect->insert_id;
                                     @file_put_contents(__DIR__.'/api_debug.log', date('c')." [admin_verifikasi_mulai_nabung] TRANSAKSI_CREATED insert_id={$new_trans_id} user={$user_id} jenis={$jenis_trans} amt={$jumlah}\n", FILE_APPEND);
+                                    // Generate no_transaksi
+                                    require_once __DIR__ . '/no_transaksi_helper.php';
+                                    generate_no_transaksi($connect, $new_trans_id, 'setoran');
                                     // Cleanup other pending duplicates for the same mulai_nabung
                                     $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                     if ($cleanup_stmt) {
@@ -465,6 +468,9 @@ try {
                                     if ($trans_reject_stmt->execute()) {
                                         $new_reject_id = $connect->insert_id;
                                         @file_put_contents(__DIR__.'/api_debug.log', date('c')." [admin_verifikasi_mulai_nabung] TRANSAKSI_REJECT_CREATED insert_id={$new_reject_id} user={$reject_user_id} status=rejected\n", FILE_APPEND);
+                                        // Generate no_transaksi
+                                        require_once __DIR__ . '/no_transaksi_helper.php';
+                                        generate_no_transaksi($connect, $new_reject_id, 'setoran');
                                         // Cleanup other pending duplicates for the same mulai_nabung (reject)
                                         $cleanup_stmt = $connect->prepare("DELETE FROM transaksi WHERE id_pengguna = ? AND jenis_transaksi = 'setoran' AND status = 'pending' AND keterangan LIKE ? AND id_transaksi != ?");
                                         if ($cleanup_stmt) {

@@ -49,7 +49,16 @@ function record_transaction($connect, $payload = []) {
 
     $sql = "INSERT INTO transaksi (" . implode(', ', $insertCols) . ") VALUES (" . implode(', ', $insertVals) . ")";
     $ok = $connect->query($sql);
-    if ($ok) return $connect->insert_id;
+    if ($ok) {
+        $insert_id = $connect->insert_id;
+        // Auto-generate no_transaksi
+        $jenis = isset($payload['jenis_transaksi']) ? $payload['jenis_transaksi'] : '';
+        if ($insert_id > 0 && !empty($jenis)) {
+            require_once __DIR__ . '/no_transaksi_helper.php';
+            generate_no_transaksi($connect, $insert_id, $jenis);
+        }
+        return $insert_id;
+    }
     // log error
     @file_put_contents(__DIR__ . '/transaksi_helper.log', date('c') . " RECORD_TRANSACTION_FAILED sql=" . $sql . " err=" . $connect->error . "\n", FILE_APPEND);
     return false;

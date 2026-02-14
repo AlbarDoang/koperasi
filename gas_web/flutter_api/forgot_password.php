@@ -12,13 +12,17 @@ $logFile = __DIR__ . '/log_db.txt';
 // ============================================================================
 // FUNGSI: Kirim OTP ke WhatsApp via Fonnte API
 // ============================================================================
-function sendOTPViaCURL($target, $otp) {
-    // Format pesan OTP Reset Password sesuai spek Koperasi GAS
-    // Pesan: Koperasi GAS + Kode OTP untuk reset password + 2 menit valid + Jangan bagikan
+function sendOTPViaCURL($target, $otp, $type = 'password') {
+    // Format pesan OTP sesuai spek Koperasi GAS
+    // Mendukung 2 tipe: 'password' (reset password) dan 'pin' (reset PIN Transaksi)
     $message = "Koperasi GAS\n";
-    $message .= "Kode OTP untuk reset password akun Anda adalah:\n";
+    if ($type === 'pin') {
+        $message .= "Kode OTP untuk reset PIN Transaksi Anda adalah:\n";
+    } else {
+        $message .= "Kode OTP untuk reset password akun Anda adalah:\n";
+    }
     $message .= "{$otp}\n\n";
-    $message .= "Kode ini bersifat rahasia dan berlaku selama 2 menit.\n";
+    $message .= "Kode ini bersifat rahasia dan berlaku selama 1 menit.\n";
     $message .= "Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin.";
 
     if (!defined('FONNTE_TOKEN')) {
@@ -40,11 +44,16 @@ function sendOTPViaCURL($target, $otp) {
         return array('success' => false, 'message' => 'Nomor tujuan tidak valid untuk WhatsApp (harus dalam format 628xxxxxxxx)', 'response' => null);
     }
 
-    // Siapkan payload JSON
-    $payload = json_encode([
+    // Siapkan payload url-encoded (agar Fonnte langsung kirim tanpa queue)
+    $postFields = http_build_query(array(
         'target' => $target_clean,
-        'message' => $message
-    ]);
+        'message' => $message,
+        'countryCode' => '62',
+        'delay' => '0',
+        'typing' => 'false',
+        'connectOnly' => 'true',
+        'preview' => 'false'
+    ));
 
     if (!defined('FONNTE_API_ENDPOINT')) {
         define('FONNTE_API_ENDPOINT', 'https://api.fonnte.com/send');
@@ -55,10 +64,9 @@ function sendOTPViaCURL($target, $otp) {
         CURLOPT_URL => FONNTE_API_ENDPOINT,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_POSTFIELDS => $postFields,
         CURLOPT_HTTPHEADER => array(
-            'Authorization: ' . $fonnte_token,
-            'Content-Type: application/json'
+            'Authorization: ' . $fonnte_token
         ),
         CURLOPT_TIMEOUT => 30,
         CURLOPT_CONNECTTIMEOUT => 10,
@@ -142,7 +150,7 @@ try {
 
     // Generate OTP 6 digit (do not persist until send succeeds)
     $otp = sprintf('%06d', random_int(0, 999999));
-    $expired_at = date('Y-m-d H:i:s', strtotime('+2 minutes'));
+    $expired_at = date('Y-m-d H:i:s', strtotime('+1 minute'));
 
     // ========================================================================
     // OTP Reset Password - Kirim via Fontte dengan pesan template
@@ -151,7 +159,11 @@ try {
     // Pesan format: Kode OTP untuk reset password
     // Message akan ditangani oleh sendOTPViaCURL sebagai simple message
     
-    $sendRes = sendOTPViaCURL($no_wa_normalized, $otp);
+    // Deteksi tipe reset: 'pin' untuk reset PIN Transaksi, default 'password'
+    $type = getPostData('type');
+    if (empty($type)) $type = 'password';
+
+    $sendRes = sendOTPViaCURL($no_wa_normalized, $otp, $type);
     if (empty($sendRes) || empty($sendRes['success'])) {
         @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - FORGOT_PASSWORD_SEND_FAIL: ' . substr(json_encode($sendRes),0,1000) . PHP_EOL, FILE_APPEND);
         safeJsonResponse(false, 'Gagal mengirim OTP ke WhatsApp. Silakan coba lagi nanti atau hubungi admin.', array('status' => false));

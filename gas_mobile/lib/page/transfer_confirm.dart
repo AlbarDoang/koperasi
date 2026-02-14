@@ -16,6 +16,7 @@ class TransferConfirmPage extends StatefulWidget {
   final String? recipientName;
   final int amount;
   final String note;
+  final bool isFirstTransfer;
 
   const TransferConfirmPage({
     super.key,
@@ -23,6 +24,7 @@ class TransferConfirmPage extends StatefulWidget {
     this.recipientName,
     required this.amount,
     required this.note,
+    this.isFirstTransfer = true,
   });
 
   @override
@@ -63,7 +65,7 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
       }
 
       // Call API
-      final reason = await EventDB.addTransfer(
+      final result = await EventDB.addTransfer(
         idPengirim,
         widget.phone,
         pin,
@@ -71,7 +73,11 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
         widget.amount.toString(),
       );
 
-      if (reason.toLowerCase().contains('berhasil')) {
+      final reason = (result['message'] ?? 'Transfer Gagal').toString();
+      final transferSuccess = result['success'] == true;
+      final idTransaksi = result['id_transaksi'] as int?;
+
+      if (transferSuccess) {
         final formatted = NumberFormat.currency(
           locale: 'id_ID',
           symbol: 'Rp ',
@@ -79,10 +85,19 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
         ).format(widget.amount);
 
         // Add a local notification for the sender (immediate feedback only).
+        final recipientLabel = widget.recipientName != null && widget.recipientName!.isNotEmpty
+            ? '${widget.recipientName} (${widget.phone})'
+            : widget.phone;
         await NotifikasiHelper.addLocalNotification(
           type: 'transaksi',
-          title: 'Transfer Berhasil',
-          message: 'Transfer sebesar $formatted ke ${widget.phone} berhasil.',
+          title: 'Kirim Uang',
+          message: 'Kirim Uang $formatted ke $recipientLabel Berhasil.',
+          data: {
+            'jenis_transaksi': 'transfer_keluar',
+            'amount': widget.amount,
+            'status': 'approved',
+            if (idTransaksi != null) 'id_transaksi': idTransaksi,
+          },
         );
 
         // Persist a local transaction record so it appears in Riwayat Transaksi
@@ -90,14 +105,20 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
           final prefs = await SharedPreferences.getInstance();
           final existing = prefs.getString('transactions') ?? '[]';
           final list = jsonDecode(existing) as List;
-          final id = DateTime.now().millisecondsSinceEpoch;
+          final id = idTransaksi ?? DateTime.now().millisecondsSinceEpoch;
           list.add({
             'id': id,
+            'id_transaksi': idTransaksi ?? id,
+            'id_pengguna': int.tryParse(idPengirim) ?? idPengirim,
             'type': 'transfer',
+            'jenis_transaksi': 'transfer_keluar',
+            'title': 'Kirim Uang',
             'direction': 'keluar',
             'to': widget.phone,
             'amount': widget.amount,
-            'keterangan': 'Transfer Berhasil',
+            'jumlah': widget.amount,
+            'keterangan': 'Kirim Uang $formatted ke $recipientLabel Berhasil.',
+            'status': 'approved',
             'created_at': DateTime.now().toIso8601String(),
           });
           await prefs.setString('transactions', jsonEncode(list));
@@ -227,7 +248,6 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        CustomToast.success(context, 'Transfer berhasil');
                         // Navigate to Dashboard first (clear transfer flow), then open Riwayat on top
                         // so that pressing back from Riwayat returns to Dashboard
                         Get.offAllNamed('/dashboard');
@@ -314,8 +334,9 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFFFF4C00),
+        centerTitle: true,
         title: Text(
-          'Konfirmasi Transfer',
+          'Konfirmasi Kirim Uang',
           style: GoogleFonts.roboto(fontWeight: FontWeight.w700),
         ),
       ),
@@ -370,24 +391,25 @@ class _TransferConfirmPageState extends State<TransferConfirmPage> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3E9),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'BARU',
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFFF6A00),
+                      if (widget.isFirstTransfer)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3E9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'BARU',
+                            style: GoogleFonts.roboto(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFFF6A00),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),

@@ -9,6 +9,54 @@ class NotifikasiHelper {
   // Notifier for UI to listen to changes in notifications store.
   static final ValueNotifier<int> onNotificationsChanged = ValueNotifier<int>(0);
 
+  static String _ownerIdFromUser(dynamic user) {
+    try {
+      final idVal = user?.id?.toString() ?? '';
+      if (idVal.isNotEmpty) return idVal;
+      final hpVal = user?.no_hp?.toString() ?? '';
+      if (hpVal.isNotEmpty) return hpVal;
+    } catch (_) {}
+    return '';
+  }
+
+  static bool isForOwner(
+    Map<String, dynamic> n,
+    String ownerId, {
+    String? fallbackOwnerId,
+  }) {
+    if (ownerId.isEmpty) return true;
+    final owner = (n['owner_id'] ?? '').toString();
+    if (owner.isNotEmpty) return owner == ownerId;
+    if (fallbackOwnerId != null && fallbackOwnerId.isNotEmpty) {
+      return fallbackOwnerId == ownerId;
+    }
+    // Notifications without owner_id should be kept (not dropped)
+    // to prevent data loss for older notifications or edge cases
+    return true;
+  }
+
+  static List<Map<String, dynamic>> filterForOwner(
+    List<dynamic> list,
+    String ownerId, {
+    String? fallbackOwnerId,
+  }) {
+    // Use safe casting to avoid TypeError if any item is not a Map
+    final safeCasted = <Map<String, dynamic>>[];
+    for (final item in list) {
+      try {
+        if (item is Map) {
+          safeCasted.add(Map<String, dynamic>.from(item));
+        }
+      } catch (_) {
+        // Skip malformed entries instead of crashing
+      }
+    }
+    if (ownerId.isEmpty) return safeCasted;
+    return safeCasted.where((n) {
+      return isForOwner(n, ownerId, fallbackOwnerId: fallbackOwnerId);
+    }).toList();
+  }
+
   /// Fetch latest notifications from server and save *only* transaction notifications.
   /// If fetching fails, keep existing local notifications to avoid showing an empty list.
   static bool _isExcludedNotification(Map<String, dynamic> n) {
@@ -269,13 +317,22 @@ class NotifikasiHelper {
 
   static Future<void> initializeNotifications() async {
     final prefs = await SharedPreferences.getInstance();
+    final user = await EventPref.getUser();
+    final ownerId = _ownerIdFromUser(user);
+    final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
 
     // Remove previously stored excluded notifications so they don't remain visible
     // if the server fetch fails or contains no valid items.
+    // IMPORTANT: Only prune exclusions from the FULL list, do NOT filter by owner
+    // for storage - owner filtering is only for display. This prevents permanently
+    // deleting notifications from SharedPreferences.
     try {
       final existingRaw = prefs.getString('notifications') ?? '[]';
       final List<dynamic> existingList = jsonDecode(existingRaw);
-      final filteredExisting = existingList.where((e) => !_isExcludedNotification(e)).toList();
+      final filteredExisting = existingList
+          .cast<Map<String, dynamic>>()
+          .where((e) => !_isExcludedNotification(e))
+          .toList();
       if (filteredExisting.length != existingList.length) {
         await prefs.setString('notifications', jsonEncode(filteredExisting));
         // Notify listeners that the notification store changed
@@ -285,7 +342,6 @@ class NotifikasiHelper {
     } catch (_) {}
 
     try {
-      final user = await EventPref.getUser();
       if (user != null && (user.id ?? '').isNotEmpty) {
         final serverList = await EventDB.getNotifications(user.id ?? '');
         if (kDebugMode) debugPrint('[NotifikasiHelper] ✅ serverList received count=${serverList.length}');
@@ -321,6 +377,7 @@ class NotifikasiHelper {
               'created_at': n['created_at'] ?? DateTime.now().toIso8601String(),
               'read': n['read'] ?? false,
               'data': n['data'] ?? null,
+              if (ownerId.isNotEmpty) 'owner_id': ownerId,
             };
           }).toList();
 
@@ -331,13 +388,25 @@ class NotifikasiHelper {
           try {
             final existingRaw = prefs.getString('notifications') ?? '[]';
             final List<dynamic> existingList = jsonDecode(existingRaw);
+            // Use the FULL existing list for merge so no notifications are lost.
+            // Owner filtering is only for display, not for storage.
+            final safeExisting = filterForOwner(
+              existingList,
+              '',  // empty ownerId = return all items safely cast
+            );
 
-            final merged = mergeServerWithExisting(List<Map<String, dynamic>>.from(filtered), existingList);
+            final merged = mergeServerWithExisting(
+              List<Map<String, dynamic>>.from(filtered),
+              safeExisting,
+            );
 
             // Ensure newest notifications appear first (created_at descending)
             final sortedMerged = _sortNotificationsNewestFirst(merged);
 
             await prefs.setString('notifications', jsonEncode(sortedMerged));
+            if (ownerId.isNotEmpty) {
+              await prefs.setString('notifications_owner_id', ownerId);
+            }
             // Notify listeners that the notification store changed
             try { onNotificationsChanged.value++; } catch (_) {}
             if (kDebugMode) {
@@ -347,12 +416,11 @@ class NotifikasiHelper {
               }
             }
           } catch (e) {
-            // On any failure, fall back to server-only list
-            await prefs.setString('notifications', jsonEncode(filtered));
-            // Notify listeners that the notification store changed
-            try { onNotificationsChanged.value++; } catch (_) {}
+            // If merge fails, do NOT overwrite prefs with server-only data
+            // to avoid permanently destroying local-only notifications (e.g. Kirim Uang).
+            // Local cache is preserved as-is.
             if (kDebugMode) {
-              debugPrint('[NotifikasiHelper] ⚠️ MERGE FAILED, using server-only count=${filtered.length}. Error: $e');
+              debugPrint('[NotifikasiHelper] ⚠️ MERGE FAILED, keeping local cache intact. Error: $e');
             }
           }
 
@@ -391,6 +459,8 @@ class NotifikasiHelper {
     Map<String, dynamic>? data,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    final user = await EventPref.getUser();
+    final ownerId = _ownerIdFromUser(user);
     final existing = prefs.getString('notifications') ?? '[]';
     final List<dynamic> notifications = jsonDecode(existing);
 
@@ -405,6 +475,8 @@ class NotifikasiHelper {
       final ti = (n['title'] ?? '').toString();
       final m = (n['message'] ?? '').toString();
       final nd = n['data'];
+      final nOwner = (n['owner_id'] ?? '').toString();
+      if (ownerId.isNotEmpty && nOwner.isNotEmpty && nOwner != ownerId) return false;
       
       // Must match type, title, and message
       if (t != type || ti != title || m != message) return false;
@@ -451,11 +523,15 @@ class NotifikasiHelper {
       'created_at': now.toIso8601String(),
       'read': false,
       'data': (data != null && data.isNotEmpty) ? data : null,
+      if (ownerId.isNotEmpty) 'owner_id': ownerId,
     };
 
     // Insert at top (newest first)
     notifications.insert(0, newNotification);
     await prefs.setString('notifications', jsonEncode(notifications));
+    if (ownerId.isNotEmpty) {
+      await prefs.setString('notifications_owner_id', ownerId);
+    }
     
     // Persist last local notification explicitly
     await prefs.setString('last_local_notif', jsonEncode(newNotification));
@@ -485,9 +561,17 @@ class NotifikasiHelper {
   static Future<int> getUnreadCount() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final user = await EventPref.getUser();
+      final ownerId = _ownerIdFromUser(user);
+      final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
       final existing = prefs.getString('notifications') ?? '[]';
       final List<dynamic> list = jsonDecode(existing);
-      final unread = list.cast<Map<String, dynamic>>().where((n) => (n['read'] ?? false) == false).length;
+      final ownerFiltered = filterForOwner(
+        list,
+        ownerId,
+        fallbackOwnerId: storedOwnerId,
+      );
+      final unread = ownerFiltered.where((n) => (n['read'] ?? false) == false).length;
       return unread;
     } catch (_) {
       return 0;

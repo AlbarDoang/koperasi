@@ -6,6 +6,9 @@
  * DEBUGGING MODE: Shows real errors instead of "Internal server error"
  */
 
+// Set timezone ke Indonesia (UTC+7) - PENTING agar date() menghasilkan waktu WIB
+date_default_timezone_set('Asia/Jakarta');
+
 // ENABLE DEBUGGING - Show real errors before loading connection.php
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');

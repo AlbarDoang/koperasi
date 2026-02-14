@@ -323,5 +323,35 @@ function safe_sum_transaksi($conn, $id_tabungan = null) {
 
     return null;
 }
+
+// ============================================================================
+// VALIDASI ENUM
+// ============================================================================
+
+/**
+ * Validasi status_akun sesuai ENUM tabel pengguna
+ * ENUM: 'draft','submitted','pending','approved','rejected'
+ *
+ * @param string $status Nilai yang ingin divalidasi
+ * @return string|false Nilai lowercase yang valid, atau false jika tidak valid
+ */
+function validateStatusAkun($status) {
+    $allowed = ['draft', 'submitted', 'pending', 'approved', 'rejected'];
+    $status = strtolower(trim($status));
+    return in_array($status, $allowed) ? $status : false;
+}
+
+/**
+ * Validasi status otp_codes sesuai ENUM tabel otp_codes
+ * ENUM: 'belum','sudah'
+ *
+ * @param string $status Nilai yang ingin divalidasi
+ * @return string|false Nilai lowercase yang valid, atau false jika tidak valid
+ */
+function validateStatusOtp($status) {
+    $allowed = ['belum', 'sudah'];
+    $status = strtolower(trim($status));
+    return in_array($status, $allowed) ? $status : false;
+}
 ?>
 

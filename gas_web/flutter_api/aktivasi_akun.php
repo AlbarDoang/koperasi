@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 function sendOTPViaCURL($target, $otp) {
     // Persiapan pesan OTP (singkat, formal)
     // Format yang lebih sederhana untuk menghindari spam filter operator
-    $message = "Kode OTP: $otp. Berlaku 2 menit. Jangan bagikan kode ini.";
+    $message = "Kode OTP: $otp. Berlaku 1 menit. Jangan bagikan kode ini.";
 
     // Gunakan token Fonnte WA Admin - PASTIKAN DARI otp_helper.php atau config
     // Jika belum, define default fallback (tapi harus from centralized config idealnya)
@@ -82,11 +82,16 @@ function sendOTPViaCURL($target, $otp) {
         return array('success' => false, 'message' => 'Nomor tujuan tidak valid untuk WhatsApp (harus dalam format 628xxxxxxxx)', 'response' => null);
     }
 
-    // Siapkan payload JSON sesuai requirement API Fonnte
-    $payload = json_encode([
+    // Siapkan payload url-encoded (agar Fonnte langsung kirim tanpa queue)
+    $postFields = http_build_query(array(
         'target' => $target_clean,
-        'message' => $message
-    ]);
+        'message' => $message,
+        'countryCode' => '62',
+        'delay' => '0',
+        'typing' => 'false',
+        'connectOnly' => 'true',
+        'preview' => 'false'
+    ));
 
     // Inisialisasi cURL dengan endpoint yang benar
     if (!defined('FONNTE_API_ENDPOINT')) {
@@ -98,10 +103,9 @@ function sendOTPViaCURL($target, $otp) {
         CURLOPT_URL => FONNTE_API_ENDPOINT,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_POSTFIELDS => $postFields,
         CURLOPT_HTTPHEADER => array(
-            'Authorization: ' . $fonnte_token,
-            'Content-Type: application/json'
+            'Authorization: ' . $fonnte_token
         ),
         CURLOPT_TIMEOUT => 30,
         CURLOPT_CONNECTTIMEOUT => 10,
@@ -116,9 +120,8 @@ function sendOTPViaCURL($target, $otp) {
     curl_close($curl);
 
     // Logging: simpan request/response (jangan menyimpan token)
-    $logEntry = date('c') . " - FONNTE_SEND target={$target_clean} payload=" . substr($payload,0,1000) . " http_code={$http_code} curl_err=" . ($curl_error ?: '') . "\n";
+    $logEntry = date('c') . " - FONNTE_SEND target={$target_clean} http_code={$http_code} curl_err=" . ($curl_error ?: '') . "\n";
     @file_put_contents(__DIR__ . '/log_otp_fonte.txt', $logEntry, FILE_APPEND);
-    @file_put_contents(__DIR__ . '/api_debug.log', $logEntry, FILE_APPEND);
 
     if ($curl_error) {
         return array('success' => false, 'message' => 'cURL Error: ' . $curl_error, 'response' => $response);
@@ -345,8 +348,8 @@ try {
                 sendJsonResponse(false, 'Kode OTP sudah pernah digunakan. Silakan minta OTP baru.');
             }
 
-            // OTP valid! Sekarang perbarui status OTP ke 'terpakai'
-            $sql_update_otp = "UPDATE otp_codes SET status = 'terpakai' WHERE id = ?";
+            // OTP valid! Sekarang perbarui status OTP ke 'sudah'
+            $sql_update_otp = "UPDATE otp_codes SET status = 'sudah' WHERE id = ?";
             $stmt_update_otp = $connect->prepare($sql_update_otp);
             if (!$stmt_update_otp) {
                 $err = "Prepare stmt_update_otp gagal: " . $connect->error;
@@ -383,12 +386,13 @@ try {
             $user = $result_user->fetch_assoc();
             $stmt_user->close();
 
-            // Update status akun pengguna ke PENDING (menunggu verifikasi admin)
-            $new_status = 'PENDING';
+            // Update status akun pengguna ke pending (menunggu verifikasi admin)
+            // ENUM: 'draft','submitted','pending','approved','rejected' — harus lowercase!
+            $new_status = 'pending';
             // Be defensive: some installations may not have `status_verifikasi` column. Check first and fall back.
             $has_verif_col = $connect->query("SHOW COLUMNS FROM pengguna LIKE 'status_verifikasi'");
             if ($has_verif_col && $has_verif_col->num_rows > 0) {
-                $sql_update_user = "UPDATE pengguna SET status_akun = ?, status_verifikasi = 'PENDING' WHERE id = ?";
+                $sql_update_user = "UPDATE pengguna SET status_akun = ?, status_verifikasi = 'pending' WHERE id = ?";
             } else {
                 $sql_update_user = "UPDATE pengguna SET status_akun = ? WHERE id = ?";
             }
@@ -420,7 +424,7 @@ try {
                 'alamat' => $user['alamat_domisili'],
                 'tanggal_lahir' => $user['tanggal_lahir'],
                 'status_akun' => $new_status,
-                'status_verifikasi' => 'PENDING',
+                'status_verifikasi' => 'pending',
                 'created_at' => $user['created_at']
             )));
         } 

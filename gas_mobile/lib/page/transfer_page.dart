@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/event/event_db.dart';
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/page/transfer_gas.dart';
-import 'package:tabungan/page/transfer_banks.dart';
-import 'package:tabungan/page/transfer_ewallet.dart';
 import 'package:tabungan/page/transfer_to_friend.dart';
 
 class TransferPage extends StatefulWidget {
@@ -49,29 +48,16 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   void _onSelectOption(String key) {
-    // For banks / e-wallet we show an informational notice until backend is ready
-    if (key == 'banks' || key == 'ewallet') {
-      Get.snackbar(
-        'Info',
-        'Metode transfer ini belum tersedia',
-        backgroundColor: Colors.orange.shade700,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-      );
+    if (key == 'banks') {
+      NotificationService.showWarning('Fitur transfer ke bank belum tersedia');
       return;
     }
 
-    if (key == 'banks') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const TransferBanksPage()),
+    if (key == 'ewallet') {
+      NotificationService.showWarning(
+        'Fitur transfer ke E-Wallet belum tersedia',
       );
-    } else if (key == 'ewallet') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const TransferEwalletPage()),
-      );
+      return;
     }
   }
 
@@ -106,7 +92,7 @@ class _TransferPageState extends State<TransferPage> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: OrangeHeader(title: 'Transfer'),
+      appBar: OrangeHeader(title: 'Kirim Uang'),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -140,7 +126,7 @@ class _TransferPageState extends State<TransferPage> {
                         child: GestureDetector(
                           onTap: () => _onSelectOption('banks'),
                           child: _buildTransferOption(
-                            'Banks',
+                            'Bank',
                             Icons.account_balance,
                           ),
                         ),
@@ -177,60 +163,6 @@ class _TransferPageState extends State<TransferPage> {
             ),
 
             const Divider(height: 8, thickness: 8, color: Color(0xFFF5F5F5)),
-
-            // Transfer ke section
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Transfer Ke Orang lain',
-                    style: GoogleFonts.roboto(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF333333),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Search Box
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.search,
-                          color: Color(0xFF666666),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              hintText: 'Ketik nama atau nomor HP',
-                              hintStyle: GoogleFonts.roboto(
-                                fontSize: 14,
-                                color: const Color(0xFF999999),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // Frequently transferred section
             Container(
               padding: const EdgeInsets.all(16),
@@ -238,7 +170,7 @@ class _TransferPageState extends State<TransferPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Sering ditransfer',
+                    'Kirim Cepat',
                     style: GoogleFonts.roboto(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -319,6 +251,7 @@ class _TransferPageState extends State<TransferPage> {
                                       phone: r['phone'] ?? '',
                                       recipientName: r['name'],
                                       recipientId: r['id']?.toString(),
+                                      isFirstTransfer: false,
                                     ),
                                   ),
                                 );

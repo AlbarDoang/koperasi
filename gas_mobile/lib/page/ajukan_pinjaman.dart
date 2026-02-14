@@ -189,24 +189,8 @@ class _AjukanPinjamanPageState extends State<AjukanPinjamanPage> {
                 'Pengajuan Pinjaman Berhasil',
               );
 
-              // Add immediate local notification so it appears on Notifikasi page
-              try {
-                final formattedAmount = NumberFormat.currency(
-                  locale: 'id_ID',
-                  symbol: 'Rp ',
-                  decimalDigits: 0,
-                ).format(int.tryParse(cleaned) ?? 0);
-                if (kDebugMode) debugPrint('[AjukanPinjaman] about to add local notif: title=Pengajuan Pinjaman Diajukan message=Pengajuan pinjaman sebesar $formattedAmount untuk tenor ${_tenor ?? ''} bulan sedang diproses.');
-                await NotifikasiHelper.addLocalNotification(
-                  type: 'pinjaman',
-                  title: 'Pengajuan Pinjaman Diajukan',
-                  message:
-                      'Pengajuan pinjaman sebesar $formattedAmount untuk tenor ${_tenor ?? ''} bulan sedang diproses.',
-                );
-                if (kDebugMode) debugPrint('[AjukanPinjaman] addLocalNotification completed');
-              } catch (_) {
-                // Non-fatal: ignore failures saving local notification
-              }
+              // NOTE: Server-side (submit.php) already creates the notification.
+              // Do NOT create a local notification here to avoid duplicates.
 
               // Navigate user to Dashboard (per product request)
               Get.offAllNamed('/dashboard');
@@ -332,6 +316,7 @@ class _AjukanPinjamanPageState extends State<AjukanPinjamanPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFFFF4C00),
+        centerTitle: true,
         title: Text(
           'Ajukan Pinjaman',
           style: GoogleFonts.roboto(fontWeight: FontWeight.w700),
@@ -429,7 +414,7 @@ class _AjukanPinjamanPageState extends State<AjukanPinjamanPage> {
                                   ),
                                 ),
                                 Text(
-                                  'Syariah flat: cicilan sama setiap bulan, tanpa bunga, tanpa biaya admin',
+                                  'Syariah: cicilan sama setiap bulan,tanpa bunga,tanpa biaya admin',
                                   style: GoogleFonts.roboto(
                                     fontSize: 11,
                                     color: Colors.grey,
@@ -493,7 +478,7 @@ class _AjukanPinjamanPageState extends State<AjukanPinjamanPage> {
                           ),
                         )
                       : Text(
-                          'Ajukan',
+                          'Ajukan Pinjaman',
                           style: GoogleFonts.roboto(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,

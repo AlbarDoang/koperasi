@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:tabungan/services/notification_service.dart';
 
 class MintaPage extends StatefulWidget {
   const MintaPage({Key? key}) : super(key: key);
@@ -54,9 +55,7 @@ class _MintaPageState extends State<MintaPage> {
             // Mark the amount as confirmed so QR can be shown.
             _isAmountConfirmed = value > 0;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Jumlah ditetapkan: ${_idr.format(value)}')),
-          );
+          NotificationService.showSuccess('Jumlah ditetapkan: ${_idr.format(value)}');
         },
       ),
     );

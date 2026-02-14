@@ -8,7 +8,8 @@ class TransferToFriendPage extends StatefulWidget {
   final String phone;
   final String? recipientName;
   final String? recipientId;
-  const TransferToFriendPage({super.key, required this.phone, this.recipientName, this.recipientId});
+  final bool isFirstTransfer;
+  const TransferToFriendPage({super.key, required this.phone, this.recipientName, this.recipientId, this.isFirstTransfer = true});
 
   @override
   State<TransferToFriendPage> createState() => _TransferToFriendPageState();
@@ -117,24 +118,25 @@ class _TransferToFriendPageState extends State<TransferToFriendPage> {
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E9),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'BARU',
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFFFF6A00),
+                                if (widget.isFirstTransfer)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3E9),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'BARU',
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFFFF6A00),
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -259,6 +261,7 @@ class _TransferToFriendPageState extends State<TransferToFriendPage> {
                           recipientName: widget.recipientName,
                           amount: amount,
                           note: _noteController.text.trim(),
+                          isFirstTransfer: widget.isFirstTransfer,
                         ),
                       ),
                     );

@@ -24,7 +24,7 @@ try {
             if ($row['expired_at'] >= $now && $row['status'] == 'belum') {
                 // Mark OTP as used
                 $update = $conn->prepare('UPDATE otp_codes SET status = ? WHERE no_wa = ? AND kode_otp = ?');
-                $used = 'terpakai';
+                $used = 'sudah';
                 $update->bind_param('sss', $used, $no_wa, $kode_otp);
                 $update->execute();
                 $response['success'] = true;

@@ -153,11 +153,16 @@ if (!empty($id_pengguna)) {
 $id_select = "`" . $identifier_column . "` AS id";
 
 // Query untuk mengambil data dari tabel pengguna
-// SELECT kolom-kolom yang relevan untuk profil pengguna (tambahkan status_verifikasi jika tersedia)
+// SELECT kolom-kolom yang relevan untuk profil pengguna (tambahkan kolom tambahan jika tersedia)
 $select_extra = '';
+// Cek dan tambahkan foto_profil_updated_at jika ada
+$has_foto_updated = runQueryWithLog($conn, "SHOW COLUMNS FROM pengguna LIKE 'foto_profil_updated_at'");
+if ($has_foto_updated && mysqli_num_rows($has_foto_updated) > 0) {
+    $select_extra .= ', foto_profil_updated_at';
+}
 $has_verif = runQueryWithLog($conn, "SHOW COLUMNS FROM pengguna LIKE 'status_verifikasi'");
 if ($has_verif && mysqli_num_rows($has_verif) > 0) {
-    $select_extra = ', status_verifikasi';
+    $select_extra .= ', status_verifikasi';
 }
 $query = "SELECT 
             " . $id_select . ",
@@ -243,7 +248,7 @@ if (!empty($user_data['foto_profil'])) {
         @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [get_profil] found_path={$found_path} user_id=" . ($user_data['id'] ?? '') . " filename={$filename}\n", FILE_APPEND | LOCK_EX);
 
         // Issue a short-lived signed URL to the proxy endpoint so mobile clients can fetch images
-        $exp = time() + 300; // 5 minutes
+        $exp = time() + 86400; // 24 hours
         $payload = ($user_data['id'] ?? '') . ':' . $filename . ':' . $exp;
         $sig = hash_hmac('sha256', $payload, PROFILE_IMAGE_SECRET);
         $foto_profil_url = $protocol . $host . '/gas/gas_web/login/user/foto_profil_image.php?id=' . urlencode($user_data['id']) . '&exp=' . $exp . '&sig=' . $sig;
@@ -254,7 +259,7 @@ if (!empty($user_data['foto_profil'])) {
         $thumb_flat = PROFILE_STORAGE_PHOTO . $thumb_filename;
         $thumb_legacy = dirname(__DIR__) . '/uploads/foto_profil/' . $thumb_filename;
         if (file_exists($thumb_per_user) || file_exists($thumb_flat) || file_exists($thumb_legacy)) {
-            $exp2 = time() + 300;
+            $exp2 = time() + 86400; // 24 hours
             $payload2 = ($user_data['id'] ?? '') . ':' . $thumb_filename . ':' . $exp2;
             $sig2 = hash_hmac('sha256', $payload2, PROFILE_IMAGE_SECRET);
             $foto_profil_thumb_url = $protocol . $host . '/gas/gas_web/login/user/foto_profil_image.php?id=' . urlencode($user_data['id']) . '&exp=' . $exp2 . '&sig=' . $sig2 . '&thumb=1';

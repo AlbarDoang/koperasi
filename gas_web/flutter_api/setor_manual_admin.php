@@ -335,6 +335,12 @@ try {
     $id_transaksi = $stmt_transaksi->insert_id;
     $stmt_transaksi->close();
 
+    // Generate no_transaksi
+    if ($id_transaksi > 0) {
+        require_once __DIR__ . '/no_transaksi_helper.php';
+        generate_no_transaksi($connect, $id_transaksi, 'setoran');
+    }
+
     // STEP 4: Insert ke tabel mulai_nabung untuk konsistensi data
     // Peringatan: WAJIB insert ke mulai_nabung agar setoran manual muncul di halaman "Tabungan Masuk"
     // Tabel mulai_nabung adalah sumber data untuk halaman riwayat setoran user

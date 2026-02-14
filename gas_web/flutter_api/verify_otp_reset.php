@@ -61,33 +61,33 @@ try {
     // Validasi 1: OTP cocok
     if ($otp_record['kode_otp'] !== $otp) {
         http_response_code(401);
-        echo json_encode(array('success' => false, 'message' => 'Kode OTP yang Anda masukkan tidak valid.'));
+        echo json_encode(array('success' => false, 'status' => false, 'message' => 'Kode OTP yang Anda masukkan tidak valid.'));
         exit();
     }
 
     // Validasi 2: OTP belum expired (perlu expired_at >= NOW())
     if ($otp_record['expired_at'] < $now) {
         http_response_code(410);
-        echo json_encode(array('success' => false, 'message' => 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.'));
+        echo json_encode(array('success' => false, 'status' => false, 'message' => 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.'));
         exit();
     }
 
     // Validasi 3: OTP belum digunakan (status = 'belum')
     if ($otp_record['status'] !== 'belum') {
         http_response_code(409);
-        echo json_encode(array('success' => false, 'message' => 'Kode OTP sudah pernah digunakan. Silakan minta kode baru.'));
+        echo json_encode(array('success' => false, 'status' => false, 'message' => 'Kode OTP sudah pernah digunakan. Silakan minta kode baru.'));
         exit();
     }
 
-    // Mark OTP as used (status = 'terpakai')
+    // Mark OTP as verified (status = 'terverifikasi') - will be set to 'terpakai' after PIN reset
     $sql_update = 'UPDATE katasandi_reset_otps SET status = ? WHERE id = ?';
     $stmt_update = $connect->prepare($sql_update);
     if (!$stmt_update) {
         throw new Exception('Prepare update OTP gagal: ' . $connect->error);
     }
 
-    $status_terpakai = 'terpakai';
-    $stmt_update->bind_param('si', $status_terpakai, $otp_record['id']);
+    $status_terverifikasi = 'terverifikasi';
+    $stmt_update->bind_param('si', $status_terverifikasi, $otp_record['id']);
     if (!$stmt_update->execute()) {
         throw new Exception('Execute update OTP gagal: ' . $stmt_update->error);
     }
@@ -96,7 +96,7 @@ try {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - VERIFY_OTP_RESET_SUCCESS: no_hp=' . $no_wa_normalized . ' otp=' . $otp . PHP_EOL, FILE_APPEND);
 
     http_response_code(200);
-    echo json_encode(array('success' => true, 'message' => 'OTP berhasil diverifikasi.'));
+    echo json_encode(array('success' => true, 'status' => true, 'message' => 'OTP berhasil diverifikasi.'));
 
 } catch (Exception $e) {
     @file_put_contents($logFile, date('Y-m-d H:i:s') . ' - VERIFY_OTP_RESET_ERROR: ' . $e->getMessage() . PHP_EOL, FILE_APPEND);

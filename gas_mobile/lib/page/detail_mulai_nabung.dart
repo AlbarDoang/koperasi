@@ -190,7 +190,7 @@ class _DetailMulaiNabungPageState extends State<DetailMulaiNabungPage> {
 
         CustomToast.success(
           context,
-          'Status berhasil diperbarui, silakan tunggu verifikasi admin.',
+          'Pengajuan setoran berhasil, silakan tunggu persetujuan admin.',
         );
       } else {
         CustomToast.error(context, message);

@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:tabungan/utils/custom_toast.dart';
+import 'package:tabungan/services/notification_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tabungan/login.dart';
 import 'package:tabungan/config/api.dart';
@@ -39,12 +39,12 @@ class _SetPinPageState extends State<SetPinPage> {
 
     // Validasi PIN
     if (pin.length != 6 || pinConfirm.length != 6) {
-      CustomToast.show(context, 'PIN harus 6 digit!', baseColor: Colors.redAccent);
+      NotificationService.showError('PIN harus 6 digit!');
       return;
     }
 
     if (pin != pinConfirm) {
-      CustomToast.show(context, 'PIN tidak cocok. Silakan coba lagi.', baseColor: Colors.redAccent);
+      NotificationService.showError('PIN tidak cocok. Silakan coba lagi.');
       return;
     }
 
@@ -54,7 +54,7 @@ class _SetPinPageState extends State<SetPinPage> {
       // Get user data dari preferences
       final user = await EventPref.getUser();
       if (user == null || user.id == null) {
-        CustomToast.show(context, 'Data user tidak ditemukan. Silakan login kembali.', baseColor: Colors.redAccent);
+        NotificationService.showError('Data user tidak ditemukan. Silakan login kembali.');
         return;
       }
 
@@ -72,7 +72,7 @@ class _SetPinPageState extends State<SetPinPage> {
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
       if (isSuccess) {
-        CustomToast.show(context, message, baseColor: primaryOrange);
+        NotificationService.showSuccess(message);
         
         if (!mounted) return;
         Future.delayed(const Duration(seconds: 2), () async {
@@ -95,12 +95,12 @@ class _SetPinPageState extends State<SetPinPage> {
           }
         });
       } else {
-        CustomToast.show(context, message, baseColor: Colors.redAccent);
+        NotificationService.showError(message);
       }
     } on TimeoutException {
-      CustomToast.show(context, 'Request timeout - Server tidak merespons', baseColor: Colors.redAccent);
+      NotificationService.showError('Request timeout - Server tidak merespons');
     } catch (e) {
-      CustomToast.show(context, 'Gagal menyimpan PIN: $e', baseColor: Colors.redAccent);
+      NotificationService.showError('Gagal menyimpan PIN: $e');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

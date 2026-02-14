@@ -87,10 +87,20 @@ class EventPref {
     return null;
   }
 
-  // CLEAR SEMUA DATA
+  // CLEAR DATA SESI (hanya data login/user, BUKAN notifikasi & riwayat transaksi)
   static Future<void> clear() async {
     SharedPreferences pref = await SharedPreferences.getInstance();
-    await pref.clear();
+    // Hanya hapus key sesi/user, jangan hapus notifikasi & transaksi
+    await pref.remove('user');
+    await pref.remove('tabungan');
+    await pref.remove('tabungan2');
+    await pref.remove('masuk');
+    await pref.remove('penarikan');
+    await pref.remove('transfer');
+    // Key berikut TIDAK dihapus agar data tetap ada setelah logout:
+    // - 'notifications', 'notifications_blacklist', 'last_local_notif'
+    // - 'transactions', 'pengajuan_list'
+    // - 'ON_BOARDING', 'isDarkMode', 'API_BASE_OVERRIDE'
   }
 
   static Future loadUser() async {}

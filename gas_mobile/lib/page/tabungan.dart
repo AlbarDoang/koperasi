@@ -393,10 +393,7 @@ class _TabunganPageState extends State<TabunganPage>
                     final ok = await EventDB.cairkanTabungan(idTab, jenis, val, idJenis: idJenisTabungan);
                     if (ok) {
                       Navigator.of(ctx).pop();
-                      // Show success notification immediately
-                      if (mounted) CustomToast.success(context, 'Pengajuan pencairan Tabungan Berhasil');
-                      // NOTE: removed bottom SnackBar ('Tabungan berhasil dicairkan') to avoid duplicate
-                      // notifications. The primary notification is the top 'Permintaan pencairan diajukan' banner.
+                      // NOTE: Success notification is handled by EventDB.cairkanTabungan to avoid duplicates.
                       // Refresh only the necessary data (saldo + rincian) and update UI without full page reload.
                       try {
                         await _refreshRincianAndSaldo();

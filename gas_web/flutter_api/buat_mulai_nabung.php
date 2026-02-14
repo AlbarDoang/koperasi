@@ -123,7 +123,11 @@ if ($stmt = $connect->prepare("INSERT INTO mulai_nabung (id_tabungan, nomor_hp, 
                                     $status_trans = 'pending';
                                     $trans_stmt->bind_param('isddsss', $user_id, $jenis_trans, $jumlah, $current_saldo, $current_saldo, $keterangan_trans, $status_trans);
                                     if ($trans_stmt->execute()) {
-                                        @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [buat_mulai_nabung] INITIAL_TRANSAKSI_CREATED insert_id=".$connect->insert_id." user={$user_id} status=pending amt={$jumlah} mulai_id={$id}\n", FILE_APPEND);
+                                        $new_trans_id = $connect->insert_id;
+                                        @file_put_contents(__DIR__ . '/api_debug.log', date('c') . " [buat_mulai_nabung] INITIAL_TRANSAKSI_CREATED insert_id=".$new_trans_id." user={$user_id} status=pending amt={$jumlah} mulai_id={$id}\n", FILE_APPEND);
+                                        // Generate no_transaksi
+                                        require_once __DIR__ . '/no_transaksi_helper.php';
+                                        generate_no_transaksi($connect, $new_trans_id, 'setoran');
                                     }
                                     $trans_stmt->close();
                                 }

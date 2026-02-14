@@ -39,7 +39,7 @@ define('FONNTE_CURL_CONNECT_TIMEOUT', 10);
 
 // 5. TIMEOUT OTP (menit)
 // - Berapa lama OTP valid sejak digenerate
-define('FONNTE_OTP_VALID_MINUTES', 2);
+define('FONNTE_OTP_VALID_MINUTES', 1);
 
 // ============================================================================
 // VALIDASI KONFIGURASI

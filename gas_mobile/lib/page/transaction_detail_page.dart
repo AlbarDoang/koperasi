@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:tabungan/config/api.dart';
 import 'package:tabungan/page/orange_header.dart';
 
 class TransactionDetailPage extends StatefulWidget {
   final Map<String, dynamic> transaction;
 
-  const TransactionDetailPage({
-    Key? key,
-    required this.transaction,
-  }) : super(key: key);
+  const TransactionDetailPage({Key? key, required this.transaction})
+    : super(key: key);
 
   @override
   State<TransactionDetailPage> createState() => _TransactionDetailPageState();
@@ -20,11 +21,112 @@ class TransactionDetailPage extends StatefulWidget {
 
 class _TransactionDetailPageState extends State<TransactionDetailPage> {
   late Map<String, dynamic> data;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
     data = Map<String, dynamic>.from(widget.transaction);
+    _fetchFreshDataFromApi();
+  }
+
+  /// Fetch fresh transaction data from get_detail_transaksi.php API
+  /// This ensures the detail page always shows accurate data from the database
+  Future<void> _fetchFreshDataFromApi() async {
+    try {
+      // Determine the best ID to use for API lookup
+      final idTransaksi = data['id_transaksi'] ?? data['id'];
+
+      // Skip re-fetch for synthetic transactions that have no real id_transaksi
+      // (value is null, empty, or 0). If a synthetic transaction has a valid
+      // id_transaksi (e.g., from notification data), allow the re-fetch so the
+      // detail page shows the most accurate data from the database.
+      if (data['_isSynthetic'] == true) {
+        final idStr = (idTransaksi ?? '').toString().trim();
+        if (idStr.isEmpty || idStr == '0') {
+          if (kDebugMode) {
+            debugPrint('[TransactionDetail] Skipping API re-fetch for synthetic transaction without valid id');
+          }
+          return;
+        }
+      }
+
+      if (idTransaksi == null) return;
+
+      final idStr = idTransaksi.toString().trim();
+      if (idStr.isEmpty || idStr == '0') return;
+
+      if (kDebugMode) {
+        debugPrint(
+          '[TransactionDetail] Fetching fresh data for id_transaksi=$idStr',
+        );
+      }
+
+      setState(() => _isRefreshing = true);
+
+      final response = await http
+          .post(
+            Uri.parse('${Api.baseUrl}/get_detail_transaksi.php'),
+            body: {'id_transaksi': idStr},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['success'] == true && body['data'] is Map) {
+          final freshData = Map<String, dynamic>.from(body['data'] as Map);
+          if (kDebugMode) {
+            debugPrint('[TransactionDetail] Got fresh data: $freshData');
+          }
+
+          // Merge fresh data into current data (fresh data takes priority)
+          // But preserve some keys from original data if not in fresh response
+          final keysToPreserve = ['type', 'title', 'processing'];
+          final merged = Map<String, dynamic>.from(data);
+          for (final entry in freshData.entries) {
+            if (entry.value != null &&
+                entry.value.toString().trim().isNotEmpty) {
+              // Don't overwrite keterangan from notification with raw API keterangan
+              if (entry.key == 'keterangan' &&
+                  data['keterangan'] != null &&
+                  data['keterangan'].toString().trim().isNotEmpty) {
+                continue;
+              }
+              merged[entry.key] = entry.value;
+            }
+          }
+          // Restore preserved keys if they were overwritten with empty values
+          for (final key in keysToPreserve) {
+            if (data.containsKey(key) &&
+                (!merged.containsKey(key) || merged[key] == null)) {
+              merged[key] = data[key];
+            }
+          }
+
+          if (mounted) {
+            setState(() {
+              data = merged;
+              _isRefreshing = false;
+            });
+          }
+          return;
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint(
+          '[TransactionDetail] API returned non-success or non-200: ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[TransactionDetail] Error fetching fresh data: $e');
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
   }
 
   String _formatCurrency(dynamic value) {
@@ -44,9 +146,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatDateTime(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      // Convert from UTC to Jakarta timezone (UTC+7)
-      final jakartaTime = d.add(Duration(hours: 7));
-      return DateFormat('dd MMM yyyy, HH:mm').format(jakartaTime);
+      return DateFormat('dd MMM yyyy, HH:mm').format(d);
     } catch (_) {
       return v?.toString() ?? '-';
     }
@@ -55,9 +155,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatDateOnly(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      // Convert from UTC to Jakarta timezone (UTC+7)
-      final jakartaTime = d.add(Duration(hours: 7));
-      return DateFormat('dd MMM yyyy').format(jakartaTime);
+      return DateFormat('dd MMM yyyy').format(d);
     } catch (_) {
       return v?.toString() ?? '-';
     }
@@ -66,110 +164,222 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _formatTimeOnly(dynamic v) {
     try {
       final d = DateTime.parse(v.toString());
-      // Convert from UTC to Jakarta timezone (UTC+7)
-      // Server typically sends times in UTC, so we need to add 7 hours
-      final jakartaTime = d.add(Duration(hours: 7));
-      return DateFormat('HH:mm').format(jakartaTime);
+      return DateFormat('HH:mm').format(d);
     } catch (_) {
       return v?.toString() ?? '-';
     }
+  }
+
+  String _formatTransactionId(dynamic value) {
+    if (value == null) {
+      return '-';
+    }
+    final raw = value.toString().trim();
+    if (raw.isEmpty || raw == '0') {
+      return '-';
+    }
+    // If no_transaksi is available (formatted like KRM-20260212-000452), use it directly
+    if (RegExp(r'^[A-Z]{3}-\d{8}-\d+$').hasMatch(raw)) {
+      return raw;
+    }
+    final match = RegExp(r'(\d+)$').firstMatch(raw);
+    return match?.group(1) ?? raw;
+  }
+
+  /// Returns the best available transaction number, preferring no_transaksi over id_transaksi
+  dynamic _getBestTransactionNo() {
+    // Priority 1: no_transaksi (formatted like KRM-20260212-000452)
+    final noTransaksi = (data['no_transaksi'] ?? '').toString().trim();
+    if (noTransaksi.isNotEmpty && noTransaksi != '0') {
+      return noTransaksi;
+    }
+    // Priority 2: id_transaksi (numeric DB id)
+    final idTransaksi = data['id_transaksi'];
+    if (idTransaksi != null && idTransaksi.toString().trim().isNotEmpty && idTransaksi.toString().trim() != '0') {
+      return idTransaksi;
+    }
+    // Priority 3: id
+    final id = data['id'];
+    if (id != null && id.toString().trim().isNotEmpty && id.toString().trim() != '0') {
+      return id;
+    }
+    return null;
   }
 
   String _formatJenisTabungan(String jenis) {
     // Add "Tabungan " prefix if not already present
     final jenisTrimmed = jenis.trim();
     if (jenisTrimmed.toLowerCase().startsWith('tabungan ')) {
-      return jenisTrimmed;  // Already has prefix
+      return jenisTrimmed; // Already has prefix
     }
-    return 'Tabungan ' + jenisTrimmed;  // Add prefix
+    return 'Tabungan ' + jenisTrimmed; // Add prefix
+  }
+
+  /// Returns the best label for jenis pinjaman (e.g. 'Pinjaman Biasa', 'Pinjaman Kredit')
+  String _getJenisPinjamanLabel() {
+    final jenisPinjaman = (data['jenis_pinjaman'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final jenisTransaksi = (data['jenis_transaksi'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    if (jenisPinjaman == 'kredit' || jenisTransaksi.contains('kredit')) {
+      return 'Pinjaman Kredit';
+    }
+    return 'Pinjaman Biasa';
+  }
+
+  /// Returns the best available datetime string from the data
+  String _getBestDateTime() {
+    // Try multiple date fields in priority order
+    final candidates = [
+      data['detail_created_at'],
+      data['created_at'],
+      data['tanggal'],
+      data['updated_at'],
+    ];
+    for (final c in candidates) {
+      if (c != null && c.toString().trim().isNotEmpty) {
+        final str = c.toString().trim();
+        // Validate it looks like a date (not just a number/ID)
+        if (str.contains('-') || str.contains('/')) {
+          return str;
+        }
+      }
+    }
+    return DateTime.now().toIso8601String();
+  }
+
+  String _normalizeJenis(String jenis) {
+    return jenis
+        .toLowerCase()
+        .replaceAll(RegExp(r'\btabungan\b', caseSensitive: false), '')
+        .trim();
   }
 
   String _formatKeterangan(String? keterangan) {
     if (keterangan == null || keterangan.isEmpty) {
       return '-';
     }
-    
+
     final keteranganLower = keterangan.toLowerCase().trim();
-    
-    // Handle format "Pencairan Tabungan Disetujui - [Jenis]" or "Pencairan Tabungan Ditolak - [Jenis]"
-    // Extract just the status part without the jenis in brackets
-    if (keteranganLower.contains('pencairan tabungan')) {
-      if (keteranganLower.contains('disetujui')) {
-        return 'Pencairan Tabungan Disetujui';
-      } else if (keteranganLower.contains('ditolak')) {
-        return 'Pencairan Tabungan Ditolak';
+    final dataJenis = (data['jenis_tabungan'] ?? '').toString().trim();
+    final normalizedJenis = _normalizeJenis(dataJenis);
+
+    // If already a full notification-style descriptive message, keep it
+    if (keteranganLower.startsWith('pengajuan ') ||
+        keteranganLower.startsWith('pencairan ') ||
+        keteranganLower.startsWith('setoran ') ||
+        keteranganLower.startsWith('admin telah') ||
+        keteranganLower.startsWith('anda menerima') ||
+        keteranganLower.startsWith('kirim uang') ||
+        keteranganLower.startsWith('terima uang')) {
+      if (normalizedJenis.isNotEmpty &&
+          keteranganLower.contains('tabungan') &&
+          !keteranganLower.contains(normalizedJenis)) {
+        // Fall through to rebuild with correct jenis tabungan.
+      } else {
+        return keterangan;
       }
     }
-    
-    // Handle format "Pencairan Tabungan: Withdrawal approved" or "Penarikan Tabungan: Withdrawal approved"
-    if ((keteranganLower.contains('pencairan tabungan') || keteranganLower.contains('penarikan tabungan')) && 
-        (keteranganLower.contains('withdrawal approved') || keteranganLower.contains('approved'))) {
-      return 'Pencairan Tabungan Disetujui';
+
+    // Build notification-style descriptive message
+    final statusLabel = _getStatusLabel();
+    final transactionType = _getTransactionType();
+    final nominal =
+        data['jumlah'] ??
+        data['price'] ??
+        data['nominal'] ??
+        data['amount'] ??
+        0;
+    final formattedAmount = _formatCurrency(nominal);
+
+    // Get jenis tabungan with proper prefix
+    var jenisTabungan = (data['jenis_tabungan'] ?? '').toString().trim();
+    if (jenisTabungan.isEmpty) {
+      jenisTabungan = 'Tabungan';
+    } else if (!jenisTabungan.toLowerCase().startsWith('tabungan')) {
+      jenisTabungan = 'Tabungan $jenisTabungan';
     }
-    
-    // Handle format setor manual: "Setoran manual oleh admin - keterangan (tabungan_masuk X)"
-    if (keteranganLower.contains('setoran manual oleh admin') && keteranganLower.contains('(tabungan_masuk')) {
-      // Extract the part before "(tabungan_masuk" and replace with new format
-      final parts = keterangan.split('(tabungan_masuk');
-      var cleanText = parts[0].trim();
-      
-      // Remove trailing dash and spaces
-      if (cleanText.endsWith('-')) {
-        cleanText = cleanText.substring(0, cleanText.length - 1).trim();
-      }
-      
-      // Add "berhasil" before dash if not already present
-      if (!cleanText.toLowerCase().contains('berhasil')) {
-        // Check if there's a dash at the end for the note
-        if (cleanText.contains('-')) {
-          final beforeDash = cleanText.substring(0, cleanText.lastIndexOf('-')).trim();
-          final afterDash = cleanText.substring(cleanText.lastIndexOf('-') + 1).trim();
-          cleanText = beforeDash + ' berhasil - ' + afterDash;
-        } else {
-          cleanText = cleanText + ' berhasil';
-        }
-      }
-      
-      return cleanText;
+
+    // Handle "Setoran manual oleh admin" - convert to notification style
+    if (keteranganLower.contains('setoran manual oleh admin')) {
+      return 'Admin telah menambahkan saldo $jenisTabungan Anda sebesar $formattedAmount';
     }
-    
-    // If keterangan has the format "Setoran Tabungan X (mulai_nabung Y)", extract just the first part
-    if (keteranganLower.contains('setoran tabungan') && keteranganLower.contains('mulai_nabung')) {
-      // Extract text before "(mulai_nabung"
-      final cleanText = keterangan.split('(mulai_nabung')[0].trim();
-      return cleanText;
-    }
-    
-    // If already formatted with "Setoran Tabungan", return as is
-    if (keteranganLower.contains('setoran tabungan')) {
-      return keterangan;
-    }
-    
-    // Check for old format and convert
-    if (keteranganLower.contains('mulai nabung tunai') || keteranganLower.contains('mulai_nabung')) {
-      // Extract status from the keterangan or use status field
-      final statusLabel = _getStatusLabel();
+
+    // Setoran Tabungan
+    if (transactionType == 'Setoran Tabungan') {
       if (statusLabel == 'Ditolak') {
-        return 'Setoran Tabungan Ditolak';
+        return 'Pengajuan Setoran $jenisTabungan Anda sebesar $formattedAmount ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
       } else if (statusLabel == 'Disetujui') {
-        return 'Setoran Tabungan Disetujui';
+        return 'Pengajuan Setoran $jenisTabungan Anda sebesar $formattedAmount disetujui, silahkan cek saldo di halaman Tabungan';
       } else if (statusLabel == 'Menunggu') {
-        return 'Pengajuan Setoran Tabungan Menunggu Persetujuan';
+        return 'Pengajuan Setoran $jenisTabungan Anda sebesar $formattedAmount berhasil dikirim dan sedang menunggu persetujuan dari admin.';
       }
     }
-    
+
+    // Pencairan Tabungan
+    if (transactionType == 'Pencairan Tabungan') {
+      if (statusLabel == 'Ditolak') {
+        return 'Pengajuan Pencairan $jenisTabungan Anda sebesar $formattedAmount ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
+      } else if (statusLabel == 'Disetujui') {
+        return 'Pengajuan Pencairan $jenisTabungan Anda sebesar $formattedAmount disetujui, silahkan cek saldo di halaman Tabungan';
+      } else if (statusLabel == 'Menunggu') {
+        return 'Pengajuan Pencairan $jenisTabungan Anda sebesar $formattedAmount sedang menunggu persetujuan dari admin.';
+      }
+    }
+
+    // Pinjaman
+    if (transactionType == 'Pinjaman') {
+      final tenor = data['tenor'] ?? 0;
+      final tenorStr = (tenor != null && tenor != 0)
+          ? ' untuk tenor $tenor bulan'
+          : '';
+      if (statusLabel == 'Ditolak') {
+        return 'Pengajuan Pinjaman Anda sebesar $formattedAmount$tenorStr ditolak oleh admin, silahkan hubungi admin untuk informasi lebih lanjut.';
+      } else if (statusLabel == 'Disetujui') {
+        return 'Pengajuan Pinjaman Anda sebesar $formattedAmount$tenorStr disetujui oleh admin, silahkan anda cek saldo di halaman dashboard.';
+      } else if (statusLabel == 'Menunggu') {
+        return 'Pengajuan Pinjaman sebesar $formattedAmount$tenorStr sedang menunggu persetujuan admin.';
+      }
+    }
+
+    // Transfer Keluar
+    if (transactionType == 'Transfer' || transactionType == 'Transfer Keluar' || transactionType == 'Kirim Uang') {
+      if (statusLabel == 'Ditolak') {
+        return 'Transfer Anda sebesar $formattedAmount ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
+      } else if (statusLabel == 'Disetujui' || statusLabel == 'Berhasil') {
+        return 'Transfer Anda sebesar $formattedAmount berhasil.';
+      } else if (statusLabel == 'Menunggu') {
+        return 'Transfer Anda sebesar $formattedAmount sedang diproses.';
+      }
+    }
+
+    // Terima Uang
+    if (transactionType == 'Terima Uang') {
+      return 'Anda menerima transfer sebesar $formattedAmount.';
+    }
+
     // Return original if no pattern matched
     return keterangan;
   }
 
   String _getTransactionType() {
     // Check jenis_transaksi field first (from API response)
-    final jenisTransaksi = (data['jenis_transaksi'] ?? '').toString().toLowerCase();
+    final jenisTransaksi = (data['jenis_transaksi'] ?? '')
+        .toString()
+        .toLowerCase();
     if (jenisTransaksi.isNotEmpty) {
       if (jenisTransaksi == 'setoran') return 'Setoran Tabungan';
       if (jenisTransaksi == 'penarikan') return 'Pencairan Tabungan';
-      if (jenisTransaksi == 'transfer_masuk') return 'Transfer Masuk';
-      if (jenisTransaksi == 'transfer_keluar') return 'Transfer Keluar';
+      if (jenisTransaksi == 'pinjaman' ||
+          jenisTransaksi == 'pinjaman_biasa' ||
+          jenisTransaksi == 'pinjaman_kredit')
+        return 'Pinjaman';
+      if (jenisTransaksi == 'transfer_masuk') return 'Terima Uang';
+      if (jenisTransaksi == 'transfer_keluar') return 'Kirim Uang';
     }
 
     // Fallback to type field
@@ -178,7 +388,8 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
 
     if (title.isNotEmpty) {
       if (title.contains('transfer')) return 'Transfer';
-      if (title.contains('top-up') || title.contains('topup')) return 'Setoran Tabungan';
+      if (title.contains('top-up') || title.contains('topup'))
+        return 'Setoran Tabungan';
       if (title.contains('listrik')) return 'Bayar Listrik';
       if (title.contains('pulsa')) return 'Beli Pulsa';
       if (title.contains('kuota')) return 'Beli Kuota';
@@ -202,16 +413,21 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   String _getStatusLabel() {
     final status = (data['status'] ?? '').toString().toLowerCase();
     final keterangan = (data['keterangan'] ?? '').toString().toLowerCase();
+    final jenisTransaksi = (data['jenis_transaksi'] ?? '').toString().toLowerCase();
+
+    // For transfer types (kirim uang / terima uang), show 'Berhasil' instead of 'Disetujui'
+    // because transfers don't require admin approval
+    final isTransferType = jenisTransaksi == 'transfer_keluar' || jenisTransaksi == 'transfer_masuk';
 
     // Prioritize explicit status values
     if (status == 'rejected' || status == 'ditolak') {
       return 'Ditolak';
     }
     if (status == 'approved' || status == 'disetujui') {
-      return 'Disetujui';
+      return isTransferType ? 'Berhasil' : 'Disetujui';
     }
-    if (status == 'success' || status == 'selesai') {
-      return 'Disetujui';
+    if (status == 'success' || status == 'selesai' || status == 'berhasil') {
+      return isTransferType ? 'Berhasil' : 'Disetujui';
     }
     if (status == 'pending' || status == 'menunggu') {
       return 'Menunggu';
@@ -227,12 +443,12 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     if (keterangan.contains('disetujui') ||
         keterangan.contains('berhasil') ||
         keterangan.contains('sukses')) {
-      return 'Disetujui';
+      return isTransferType ? 'Berhasil' : 'Disetujui';
     }
     if (data['processing'] == true) {
       return 'Menunggu';
     }
-    
+
     return 'Unknown';
   }
 
@@ -240,6 +456,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     final status = _getStatusLabel();
     switch (status) {
       case 'Disetujui':
+      case 'Berhasil':
         return Colors.green;
       case 'Ditolak':
         return Colors.red;
@@ -254,6 +471,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     final status = _getStatusLabel();
     switch (status) {
       case 'Disetujui':
+      case 'Berhasil':
         return Icons.check_circle;
       case 'Ditolak':
         return Icons.cancel;
@@ -269,7 +487,12 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final nominal = data['jumlah'] ?? data['price'] ?? data['nominal'] ?? data['amount'] ?? 0;
+    final nominal =
+        data['jumlah'] ??
+        data['price'] ??
+        data['nominal'] ??
+        data['amount'] ??
+        0;
     final transactionType = _getTransactionType();
     final statusLabel = _getStatusLabel();
     final statusColor = _getStatusColor();
@@ -292,8 +515,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     : Colors.grey.shade50,
                 border: Border(
                   bottom: BorderSide(
-                    color:
-                        isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
                   ),
                 ),
               ),
@@ -329,18 +551,12 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
               decoration: BoxDecoration(
                 color: statusColor.withOpacity(0.1),
                 border: Border(
-                  bottom: BorderSide(
-                    color: statusColor.withOpacity(0.3),
-                  ),
+                  bottom: BorderSide(color: statusColor.withOpacity(0.3)),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    statusIcon,
-                    color: statusColor,
-                    size: 24,
-                  ),
+                  Icon(statusIcon, color: statusColor, size: 24),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,20 +602,29 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   _buildDetailRow(
                     context,
                     'No. Transaksi',
-                    data['id_transaksi']?.toString() ?? data['id']?.toString() ?? '-',
+                    _formatTransactionId(_getBestTransactionNo()),
                   ),
                   const SizedBox(height: 12),
-                  _buildDetailRow(
-                    context,
-                    'Jenis Transaksi',
-                    transactionType,
-                  ),
-                  if ((data['jenis_tabungan'] ?? '').toString().trim().isNotEmpty) ...[
+                  _buildDetailRow(context, 'Jenis Transaksi', transactionType),
+                  // Show Jenis Pinjaman for pinjaman, Jenis Tabungan for others (hide for Kirim Uang)
+                  if (transactionType == 'Pinjaman') ...[
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      context,
+                      'Jenis Pinjaman',
+                      _getJenisPinjamanLabel(),
+                    ),
+                  ] else if (transactionType != 'Kirim Uang' && transactionType != 'Terima Uang' && (data['jenis_tabungan'] ?? '')
+                      .toString()
+                      .trim()
+                      .isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildDetailRow(
                       context,
                       'Jenis Tabungan',
-                      _formatJenisTabungan((data['jenis_tabungan'] ?? '').toString()),
+                      _formatJenisTabungan(
+                        (data['jenis_tabungan'] ?? '').toString(),
+                      ),
                     ),
                   ],
 
@@ -415,9 +640,9 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
 
                   const SizedBox(height: 20),
 
-                  // Detail Setoran
+                  // Detail
                   Text(
-                    'Detail Setoran',
+                    'Detail',
                     style: GoogleFonts.roboto(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -425,14 +650,13 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildDetailRow(
-                    context,
-                    'Nominal',
-                    _formatCurrency(nominal),
-                  ),
+                  _buildDetailRow(context, 'Nominal', _formatCurrency(nominal)),
 
                   // Keterangan/description
-                  if ((data['keterangan'] ?? '').toString().trim().isNotEmpty) ...[
+                  if ((data['keterangan'] ?? '')
+                      .toString()
+                      .trim()
+                      .isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildDetailRow(
                       context,
@@ -457,13 +681,13 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   _buildDetailRow(
                     context,
                     'Tanggal',
-                    _formatDateOnly(data['created_at'] ?? data['id']),
+                    _formatDateOnly(_getBestDateTime()),
                   ),
                   const SizedBox(height: 12),
                   _buildDetailRow(
                     context,
                     'Waktu',
-                    _formatTimeOnly(data['created_at'] ?? data['id']),
+                    _formatTimeOnly(_getBestDateTime()),
                   ),
 
                   // Updated at if different from created_at
@@ -511,9 +735,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.grey.shade800
-                      : Colors.grey.shade100,
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(

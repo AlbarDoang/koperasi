@@ -26,7 +26,7 @@
  * @param string $app_name Nama aplikasi (default: "Koperasi GAS")
  * @return string Pesan siap kirim
  */
-function getMessageOTPActivation($nama_user, $kode_otp, $valid_minutes = 2, $app_name = "Koperasi GAS") {
+function getMessageOTPActivation($nama_user, $kode_otp, $valid_minutes = 1, $app_name = "Koperasi GAS") {
     $message = "Koperasi GAS\n";
     $message .= "Terima kasih telah mendaftar.\n";
     $message .= "Kode OTP untuk aktivasi akun Anda adalah:\n";
@@ -49,9 +49,31 @@ function getMessageOTPActivation($nama_user, $kode_otp, $valid_minutes = 2, $app
  * @param string $app_name Nama aplikasi (default: "Koperasi GAS")
  * @return string Pesan siap kirim
  */
-function getMessageOTPForgotPassword($nama_user, $kode_otp, $valid_minutes = 2, $app_name = "Koperasi GAS") {
+function getMessageOTPForgotPassword($nama_user, $kode_otp, $valid_minutes = 1, $app_name = "Koperasi GAS") {
     $message = "Koperasi GAS\n";
     $message .= "Kode OTP untuk reset password akun Anda adalah:\n";
+    $message .= "{$kode_otp}\n\n";
+    $message .= "Kode ini bersifat rahasia dan berlaku selama {$valid_minutes} menit.\n";
+    $message .= "Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin.";
+    
+    return $message;
+}
+
+/**
+ * Template: OTP Reset PIN Transaksi
+ * 
+ * Gunakan untuk user yang ingin reset PIN Transaksi
+ * Bahasa: netral, profesional, sesuai spek Koperasi GAS
+ * 
+ * @param string $nama_user Nama lengkap user (opsional)
+ * @param string $kode_otp Kode OTP 6 digit
+ * @param int $valid_minutes Durasi valid OTP (menit, default: 1)
+ * @param string $app_name Nama aplikasi (default: "Koperasi GAS")
+ * @return string Pesan siap kirim
+ */
+function getMessageOTPForgotPin($nama_user, $kode_otp, $valid_minutes = 1, $app_name = "Koperasi GAS") {
+    $message = "Koperasi GAS\n";
+    $message .= "Kode OTP untuk reset PIN Transaksi Anda adalah:\n";
     $message .= "{$kode_otp}\n\n";
     $message .= "Kode ini bersifat rahasia dan berlaku selama {$valid_minutes} menit.\n";
     $message .= "Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku sebagai admin.";

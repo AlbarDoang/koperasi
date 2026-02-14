@@ -247,14 +247,17 @@ if ($cicilan_per_bulan < 0) emit_json(400, ['status'=>false,'message'=>'Cicilan 
     @mysqli_query($con, $insLog);
 
     // Notify user (non-blocking)
+    $notifTitle = 'Pengajuan Pinjaman Kredit Diajukan';
+    $formattedPokok = number_format($pokok, 0, ',', '.');
+    $notifMessage = 'Pengajuan pinjaman kredit Anda untuk "' . $nama_barang . '" sebesar Rp ' . $formattedPokok . ' sedang menunggu persetujuan admin.';
     if (file_exists(__DIR__ . '/../../flutter_api/notif_helper.php')) {
         @include_once __DIR__ . '/../../flutter_api/notif_helper.php';
         if (function_exists('safe_create_notification')) {
-            @safe_create_notification($con, $id_pengguna, 'pinjaman_kredit', 'Pengajuan kredit Anda sedang diverifikasi oleh admin.', 'Pengajuan kredit Anda sedang diverifikasi oleh admin.', json_encode(['application_id' => $safeId]));
+            @safe_create_notification($con, $id_pengguna, 'pinjaman_kredit', $notifTitle, $notifMessage, json_encode(['application_id' => $safeId]));
         }
     }
 
-    emit_json(201, ['status'=>true,'message'=>'Pengajuan kredit Anda sedang diverifikasi oleh admin.','id'=>$insertId]);
+    emit_json(201, ['status'=>true,'message'=>$notifMessage,'id'=>$insertId]);
 
 } catch (Throwable $e) {
     $captured = trim((string)ob_get_clean());

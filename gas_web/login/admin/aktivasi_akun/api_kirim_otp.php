@@ -78,7 +78,7 @@ if (!$rate_check['allowed']) {
 
 // Generate OTP 6 digit (do not persist until send succeeds)
 $kode_otp = generateOTP();
-$expired_at = date("Y-m-d H:i:s", strtotime("+2 minutes"));
+$expired_at = date("Y-m-d H:i:s", strtotime("+1 minute"));
 
 // Fetch user name untuk personalisasi pesan
 $nama_user = 'User';
@@ -92,10 +92,10 @@ $fonnte_token = FONNTE_TOKEN;
 // ========================================================================
 // OTP Aktivasi Akun - Pesan template profesional
 // ========================================================================
-$message = getMessageOTPActivation($nama_user, $kode_otp, 2, 'Tabungan');
+$message = getMessageOTPActivation($nama_user, $kode_otp, 1, 'Tabungan');
 
-// Add small delay before Fonnte API request (anti-spam measure)
-addDelayBeforeFontneRequest(1);
+// Langsung kirim tanpa delay (delay menyebabkan keterlambatan OTP)
+// addDelayBeforeFontneRequest(1);
 
 // Attempt to send via centralized helper (includes validation & logging)
 $sendRes = sendOTPViaFonnte($no_hp_int, $kode_otp, $fonnte_token);

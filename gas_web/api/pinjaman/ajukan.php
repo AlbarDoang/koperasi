@@ -373,11 +373,11 @@ ob_start();
         $notif_id = null;
         $notif_msg_amount = 'Rp ' . number_format($jumlah_pinjaman, 0, ',', '.');
         $notif_title = 'Pengajuan Pinjaman Diajukan';
-        $notif_message = 'Pengajuan pinjaman sebesar ' . $notif_msg_amount . ' untuk tenor ' . intval($tenor) . ' bulan telah diajukan. Menunggu persetujuan admin.';
+        $notif_message = 'Pengajuan Pinjaman sebesar ' . $notif_msg_amount . ' untuk tenor ' . intval($tenor) . ' bulan sedang menunggu persetujuan admin.';
         if (file_exists(__DIR__ . '/../../flutter_api/notif_helper.php')) {
             require_once __DIR__ . '/../../flutter_api/notif_helper.php';
             if (function_exists('safe_create_notification')) {
-                $notif_id = @safe_create_notification($con, $userId, 'pinjaman', $notif_title, $notif_message, json_encode(['id' => $insertId, 'amount' => $jumlah_pinjaman, 'tenor' => $tenor]));
+                $notif_id = @safe_create_notification($con, $userId, 'pinjaman', $notif_title, $notif_message, json_encode(['id' => $insertId, 'amount' => $jumlah_pinjaman, 'tenor' => $tenor, 'status' => 'menunggu']));
             }
         }
 

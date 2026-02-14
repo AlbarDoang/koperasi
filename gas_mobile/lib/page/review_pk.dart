@@ -45,8 +45,9 @@ class ReviewPkPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Review Pengajuan', style: GoogleFonts.roboto(fontWeight: FontWeight.w700)),
+        title: Text('Lihat Pengajuan', style: GoogleFonts.roboto(fontWeight: FontWeight.w700)),
         backgroundColor: const Color(0xFFFF4C00),
+        centerTitle: true,
       ),
       body: SafeArea(
         child: SingleChildScrollView(

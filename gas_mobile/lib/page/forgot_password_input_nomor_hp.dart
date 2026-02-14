@@ -157,39 +157,13 @@ class ForgotPasswordInputNomorHp extends GetView<ForgotPasswordController> {
                                         ),
                                       )
                                     : const Text(
-                                        'Verifikasi',
+                                        'Lanjut',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Obx(
-                              () => Text(
-                                controller.resendSeconds.value > 0
-                                    ? 'Kirim ulang dalam ${controller.resendSeconds.value} detik'
-                                    : 'Belum menerima kode?',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Colors.grey,
-                                    ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Obx(
-                              () => TextButton(
-                                onPressed: controller.resendSeconds.value > 0
-                                    ? null
-                                    : () {
-                                        controller.requestOTP();
-                                      },
-                                child: const Text('Kirim Ulang'),
                               ),
                             ),
                           ),

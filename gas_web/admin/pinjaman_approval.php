@@ -6,6 +6,9 @@
 
 declare(strict_types=1);
 
+// Set PHP timezone to WIB so date() returns correct local time
+date_default_timezone_set('Asia/Jakarta');
+
 // Require auth and DB
 require_once __DIR__ . '/../login/middleware/Auth.php';
 if (!Auth::isAdmin()) {
@@ -121,27 +124,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($affected > 0) {
         // Try to fetch id_pengguna and amount for the pinjaman to notify the user
         $notified = false;
-        $stmt2 = mysqli_prepare($con, "SELECT id_pengguna, COALESCE(jumlah_pinjaman, jumlah) AS amount FROM pinjaman WHERE id = ? LIMIT 1");
+        $stmt2 = mysqli_prepare($con, "SELECT id_pengguna, COALESCE(jumlah_pinjaman, jumlah) AS amount, tenor FROM pinjaman WHERE id = ? LIMIT 1");
         if ($stmt2) {
             mysqli_stmt_bind_param($stmt2, 'i', $id);
             if (mysqli_stmt_execute($stmt2)) {
-                mysqli_stmt_bind_result($stmt2, $pid_user, $pamount);
+                mysqli_stmt_bind_result($stmt2, $pid_user, $pamount, $ptenor);
                 if (mysqli_stmt_fetch($stmt2)) {
                     $pid_user = (int)$pid_user;
                     $pamount = (int)$pamount;
-                    $title = ($action === 'approve') ? 'Pengajuan pinjaman disetujui' : 'Pengajuan pinjaman ditolak';
+                    $ptenor = (int)$ptenor;
                     $amountStr = 'Rp ' . number_format($pamount, 0, ',', '.');
+                    $tenorStr = $ptenor > 0 ? $ptenor . ' bulan' : '';
                     if ($action === 'approve') {
-                        $message_n = 'Pengajuan pinjaman Anda sebesar ' . $amountStr . ' telah disetujui oleh admin.';
+                        $title = 'Pengajuan Pinjaman Disetujui';
+                        $message_n = 'Pengajuan Pinjaman Anda sebesar ' . $amountStr . ($ptenor > 0 ? ' untuk tenor ' . $tenorStr : '') . ' disetujui, silahkan cek saldo anda di halaman dashboard.';
+                        $notifStatus = 'berhasil';
                     } else {
-                        $message_n = 'Pengajuan pinjaman Anda sebesar ' . $amountStr . ' telah ditolak oleh admin.';
-                        if (!empty($note)) $message_n .= ' Catatan: ' . trim($note);
+                        $title = 'Pengajuan Pinjaman Ditolak';
+                        $message_n = 'Pengajuan Pinjaman Anda sebesar ' . $amountStr . ($ptenor > 0 ? ' untuk tenor ' . $tenorStr : '') . ' ditolak, silahkan hubungi admin untuk informasi lebih lanjut.';
+                        if (!empty($note)) $message_n .= ' Alasan: ' . trim($note);
+                        $notifStatus = 'ditolak';
                     }
                     if (file_exists(__DIR__ . '/../flutter_api/notif_helper.php')) {
                         require_once __DIR__ . '/../flutter_api/notif_helper.php';
                         if (function_exists('safe_create_notification')) {
-                            @safe_create_notification($con, $pid_user, 'pinjaman', $title, $message_n, json_encode(['id' => $id, 'amount' => $pamount, 'action' => $action]));
+                            @safe_create_notification($con, $pid_user, 'pinjaman', $title, $message_n, json_encode(['id' => $id, 'amount' => $pamount, 'tenor' => $ptenor, 'action' => $action, 'status' => $notifStatus]));
                             $notified = true;
+                        }
+                    }
+
+                    // INSERT into transaksi table so pinjaman_biasa gets a central id_transaksi
+                    if (file_exists(__DIR__ . '/../flutter_api/transaksi_helper.php')) {
+                        require_once __DIR__ . '/../flutter_api/transaksi_helper.php';
+                        if (function_exists('record_transaction')) {
+                            $txPayload = [
+                                'id_pengguna' => $pid_user,
+                                'jenis_transaksi' => 'pinjaman_biasa',
+                                'jumlah' => $pamount,
+                                'saldo_sebelum' => 0,
+                                'saldo_sesudah' => 0,
+                                'keterangan' => $message_n,
+                                'tanggal' => date('Y-m-d H:i:s'),
+                                'status' => $statusVal
+                            ];
+                            @record_transaction($con, $txPayload);
                         }
                     }
                 }

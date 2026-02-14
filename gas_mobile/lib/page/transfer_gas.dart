@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/page/transfer_to_friend.dart';
@@ -17,15 +19,27 @@ class TransferGasPage extends StatefulWidget {
 class _TransferGasPageState extends State<TransferGasPage> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _contacts = [];
+  List<Contact> _syncedContacts = [];
 
   List<Map<String, dynamic>> _filteredContacts = [];
+  List<Contact> _filteredSyncedContacts = [];
   String? _newPhone;
   bool _showNewResult = false;
+  bool _isLoading = false;
+
+  // Lookup state for new recipient
+  String? _newRecipientName;
+  String? _newRecipientId;
+  bool _isFirstTransfer = true;
+  bool _isLookingUp = false;
+  Set<String> _allPastRecipientIds = {};
+  Set<String> _allPastRecipientPhones = {};
 
   @override
   void initState() {
     super.initState();
     _filteredContacts = _contacts;
+    _filteredSyncedContacts = _syncedContacts;
     _searchController.addListener(_filterContacts);
     // Load frequent recipients for this user
     _loadFrequentRecipients();
@@ -36,10 +50,12 @@ class _TransferGasPageState extends State<TransferGasPage> {
       final cuser = Get.find<CUser>();
       final id = cuser.user.id;
       if (id == null) return;
-      final rec = await EventDB.getFrequentRecipients(id, limit: 10);
+      // Load large list for complete transfer history (BARU badge check)
+      final rec = await EventDB.getFrequentRecipients(id, limit: 1000);
       if (rec.isNotEmpty) {
         setState(() {
           _contacts = rec
+              .take(10)
               .map(
                 (r) => {
                   'name': r['nama'] ?? r['id'] ?? 'Penerima',
@@ -50,6 +66,20 @@ class _TransferGasPageState extends State<TransferGasPage> {
               )
               .toList();
           _filteredContacts = _contacts;
+          // Store ALL past recipient IDs and phones for "BARU" check
+          _allPastRecipientIds = rec
+              .map((r) => r['id']?.toString() ?? '')
+              .where((s) => s.isNotEmpty)
+              .toSet();
+          _allPastRecipientPhones = rec
+              .map(
+                (r) => (r['no_hp'] ?? '').toString().replaceAll(
+                  RegExp(r'[^0-9]'),
+                  '',
+                ),
+              )
+              .where((s) => s.isNotEmpty)
+              .toSet();
         });
       }
     } catch (e) {
@@ -70,17 +100,22 @@ class _TransferGasPageState extends State<TransferGasPage> {
     final isNewPhone =
         _isValidPhone(query) &&
         !_isPhoneInContacts(query) &&
+        !_isPhoneInSyncedContacts(query) &&
         cleanQuery.isNotEmpty;
 
     setState(() {
       if (isNewPhone) {
         // When it's a new valid phone, show the two result cards inline
         _filteredContacts = [];
+        _filteredSyncedContacts = [];
         _newPhone = query;
         _showNewResult = true;
       } else {
         _newPhone = null;
         _showNewResult = false;
+        _newRecipientName = null;
+        _newRecipientId = null;
+        _isFirstTransfer = true;
         _filteredContacts = _contacts
             .where(
               (contact) =>
@@ -88,8 +123,59 @@ class _TransferGasPageState extends State<TransferGasPage> {
                   contact['phone'].contains(query),
             )
             .toList();
+        _filteredSyncedContacts = _filterSyncedContacts(query);
       }
     });
+
+    // Trigger async lookup for the recipient's real name
+    if (isNewPhone) {
+      _lookupRecipient(query);
+    }
+  }
+
+  /// Look up the recipient by phone to get their real name and check transfer history
+  Future<void> _lookupRecipient(String phone) async {
+    setState(() {
+      _isLookingUp = true;
+    });
+    try {
+      final user = await EventDB.inspectUser(phone);
+      // Only update if the phone is still the same (user may have typed more)
+      if (_newPhone != phone) return;
+      if (user != null) {
+        final recipientId = user['id']?.toString() ?? '';
+        final recipientName = user['nama']?.toString();
+        final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+        // Check if we've ever transferred to this user before
+        bool hasTransferredBefore = false;
+        if (recipientId.isNotEmpty &&
+            _allPastRecipientIds.contains(recipientId)) {
+          hasTransferredBefore = true;
+        }
+        if (cleanPhone.isNotEmpty &&
+            _allPastRecipientPhones.contains(cleanPhone)) {
+          hasTransferredBefore = true;
+        }
+        setState(() {
+          _newRecipientName = recipientName;
+          _newRecipientId = recipientId;
+          _isFirstTransfer = !hasTransferredBefore;
+          _isLookingUp = false;
+        });
+      } else {
+        setState(() {
+          _newRecipientName = null;
+          _newRecipientId = null;
+          _isFirstTransfer = true;
+          _isLookingUp = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('lookupRecipient error: $e');
+      setState(() {
+        _isLookingUp = false;
+      });
+    }
   }
 
   bool _isValidPhone(String phone) {
@@ -105,7 +191,158 @@ class _TransferGasPageState extends State<TransferGasPage> {
     );
   }
 
-  void _showVerificationDialog(String phone) async {
+  bool _isPhoneInSyncedContacts(String phone) {
+    final cleanPhone = _normalizePhone(phone);
+    return _syncedContacts.any((contact) {
+      final phones = contact.phones;
+      if (phones == null || phones.isEmpty) return false;
+      return phones.any(
+        (p) => _normalizePhone(p.number) == cleanPhone,
+      );
+    });
+  }
+
+  String _normalizePhone(String phone) {
+    // Keep digits and '+', then normalize to +62 and ensure leading '+'
+    final cleaned = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (cleaned.isEmpty) return '';
+
+    if (cleaned.startsWith('+')) {
+      return cleaned;
+    }
+
+    if (cleaned.startsWith('0')) {
+      return '+62${cleaned.substring(1)}';
+    }
+
+    return '+$cleaned';
+  }
+
+  List<Contact> _filterSyncedContacts(String query) {
+    if (query.isEmpty) return List<Contact>.from(_syncedContacts);
+    final lower = query.toLowerCase();
+    final cleanQuery = _normalizePhone(query);
+    return _syncedContacts.where((contact) {
+      final name = (contact.displayName ?? '').toLowerCase();
+      final phones = contact.phones ?? [];
+      final phoneMatch = phones.any((p) {
+        final value = p.number;
+        return value.contains(query) || _normalizePhone(value).contains(cleanQuery);
+      });
+      return name.contains(lower) || phoneMatch;
+    }).toList();
+  }
+
+  Future<void> _handleSyncContacts() async {
+    // Ask for explicit confirmation before requesting permission
+    final allow = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Konfirmasi Akses Kontak',
+            style: GoogleFonts.roboto(fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Aplikasi ingin mengakses kontak Anda untuk memudahkan transfer uang',
+            style: GoogleFonts.roboto(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Izinkan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (allow == true) {
+      await _syncContacts();
+    }
+  }
+
+  Future<bool> _syncContacts() async {
+    // Toggle loading state for sync process
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Check permission using permission_handler for cross-platform safety
+      var status = await Permission.contacts.status;
+      if (!status.isGranted) {
+        status = await Permission.contacts.request();
+      }
+
+      if (status.isPermanentlyDenied) {
+        // Send users to settings when permission is permanently denied
+        await openAppSettings();
+        return false;
+      }
+
+      if (!status.isGranted) {
+        if (!mounted) return false;
+        // Notify user when permission is denied
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin akses kontak ditolak')),
+        );
+        return false;
+      }
+
+      // Load contacts with full properties and no photos for performance
+      final contacts = await FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: false,
+        withThumbnail: false,
+      );
+      if (!mounted) return false;
+      setState(() {
+        _syncedContacts = contacts.toList();
+        _filteredSyncedContacts = _filterSyncedContacts(
+          _searchController.text,
+        );
+      });
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('syncContacts error: $e');
+      return false;
+    } finally {
+      if (!mounted) return false;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _goToTransfer({
+    required String phone,
+    String? recipientName,
+    String? recipientId,
+    bool isFirstTransfer = true,
+  }) {
+    if (isFirstTransfer) {
+      _showVerificationDialog(phone, isFirstTransfer: isFirstTransfer);
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TransferToFriendPage(
+          phone: phone,
+          recipientName: recipientName,
+          recipientId: recipientId,
+          isFirstTransfer: isFirstTransfer,
+        ),
+      ),
+    );
+  }
+
+  void _showVerificationDialog(String phone, {bool isFirstTransfer = true}) async {
     // Try to lookup user by phone to show friendly name before confirming
     final user = await EventDB.inspectUser(phone);
     // Show confirmation bottom sheet (reuse for both contact & bank flows)
@@ -223,6 +460,7 @@ class _TransferGasPageState extends State<TransferGasPage> {
                                   recipientId: user != null
                                       ? user['id']?.toString()
                                       : null,
+                                  isFirstTransfer: isFirstTransfer,
                                 ),
                               ),
                             );
@@ -374,8 +612,12 @@ class _TransferGasPageState extends State<TransferGasPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 16),
                               child: GestureDetector(
-                                onTap: () =>
-                                    _showVerificationDialog(contact['phone']),
+                                onTap: () => _goToTransfer(
+                                  phone: contact['phone'],
+                                  recipientName: contact['name'],
+                                  recipientId: contact['id']?.toString(),
+                                  isFirstTransfer: false,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -424,17 +666,7 @@ class _TransferGasPageState extends State<TransferGasPage> {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () async {
-                          // Placeholder: contact sync not yet implemented
-                          Get.snackbar(
-                            'Info',
-                            'Sinkronisasi kontak akan datang di pembaruan berikutnya.',
-                            backgroundColor: Colors.orange.shade700,
-                            colorText: Colors.white,
-                            snackPosition: SnackPosition.TOP,
-                            margin: const EdgeInsets.all(16),
-                          );
-                        },
+                        onPressed: _isLoading ? null : _handleSyncContacts,
                         icon: const Icon(Icons.sync, size: 18),
                         label: const Text('Sinkronkan'),
                       ),
@@ -446,7 +678,12 @@ class _TransferGasPageState extends State<TransferGasPage> {
                       children: [
                         // KONTAK result card (inline)
                         GestureDetector(
-                          onTap: () => _showVerificationDialog(_newPhone!),
+                          onTap: () => _goToTransfer(
+                            phone: _newPhone!,
+                            recipientName: _newRecipientName,
+                            recipientId: _newRecipientId,
+                            isFirstTransfer: _isFirstTransfer,
+                          ),
                           child: Container(
                             width: double.infinity,
                             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -481,180 +718,147 @@ class _TransferGasPageState extends State<TransferGasPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _newPhone!,
+                                        _isLookingUp
+                                            ? _newPhone!
+                                            : (_newRecipientName != null &&
+                                                  _newRecipientName!.isNotEmpty)
+                                            ? '$_newRecipientName ($_newPhone)'
+                                            : _newPhone!,
                                         style: GoogleFonts.roboto(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
                                           color: const Color(0xFF333333),
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Kamu baru pertama kali kirim ke nomor ini. Pastikan tujuannya sudah benar dan tepercaya.',
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 11,
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall?.color,
+                                      if (_newRecipientName != null &&
+                                          _newRecipientName!.isNotEmpty &&
+                                          _isFirstTransfer)
+                                        const SizedBox(height: 4),
+                                      if (_newRecipientName != null &&
+                                          _newRecipientName!.isNotEmpty &&
+                                          _isFirstTransfer)
+                                        Text(
+                                          'Kamu baru pertama kali kirim ke nomor ini. Pastikan tujuannya sudah benar dan tepercaya.',
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 11,
+                                            color: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall?.color,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E9),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'BARU',
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFFFF6A00),
+                                if (_isFirstTransfer)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
                                     ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // REKENING BANK result card (inline)
-                        GestureDetector(
-                          onTap: () => _showVerificationDialog(_newPhone!),
-                          child: Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFFECECEC),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E9),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.account_balance,
-                                      color: Color(0xFFFF6A00),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3E9),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _newPhone!,
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF333333),
-                                        ),
+                                    child: Text(
+                                      'BARU',
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFFFF6A00),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Kamu baru pertama kali kirim ke akun bank ini. Pastikan nomornya sudah sesuai ya.',
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 11,
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall?.color,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E9),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'BARU',
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFFFF6A00),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ],
                     )
+                  else if (_isLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_filteredSyncedContacts.isEmpty)
+                    Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        Icon(
+                          Icons.contacts,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Belum ada kontak disinkronkan',
+                          style: GoogleFonts.roboto(
+                            fontSize: 13,
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color,
+                          ),
+                        ),
+                      ],
+                    )
                   else
-                    GridView.builder(
+                    ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 0.85,
-                          ),
-                      itemCount: _filteredContacts.length,
+                      itemCount: _filteredSyncedContacts.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (context, index) {
-                        final contact = _filteredContacts[index];
-                        return GestureDetector(
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Memilih: ${contact['name']} - ${contact['phone']}',
-                                ),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildContactAvatar(
-                                contact['avatar'],
-                                contact['name'],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                contact['name'],
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.roboto(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF333333),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                        final contact = _filteredSyncedContacts[index];
+                        final name = contact.displayName ?? 'Kontak';
+                        final rawPhone = (contact.phones != null &&
+                            contact.phones!.isNotEmpty)
+                          ? contact.phones!.first.number
+                          : '';
+                        final firstPhone =
+                          rawPhone.trim().isEmpty ? '-' : rawPhone;
+                        final canTransfer = firstPhone != '-';
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
                           ),
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFFFFE4D6),
+                            child: const Icon(
+                              Icons.person,
+                              color: Color(0xFFFF6A00),
+                            ),
+                          ),
+                          title: Text(
+                            name,
+                            style: GoogleFonts.roboto(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF333333),
+                            ),
+                          ),
+                          subtitle: Text(
+                            firstPhone,
+                            style: GoogleFonts.roboto(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.color,
+                            ),
+                          ),
+                          onTap: canTransfer
+                              ? () => _goToTransfer(
+                                    phone: firstPhone,
+                                    recipientName: name,
+                                    isFirstTransfer: false,
+                                  )
+                              : null,
                         );
                       },
                     ),

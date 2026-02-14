@@ -119,11 +119,33 @@ class _ProfilState extends State<Profil> {
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              radius: 40,
-                              backgroundImage: NetworkImage(
-                                  "https://tabungan.boash.sch.id/assets/images/user.png",
-                                ),
+                            // Perbaikan error backgroundImage
+                            Builder(
+                              builder: (context) {
+                                final foto = _cUser.user.foto;
+                                ImageProvider<Object> imageProvider;
+                                if (foto != null && foto.isNotEmpty) {
+                                  String url;
+                                  if (foto.startsWith('http')) {
+                                    url = foto;
+                                  } else {
+                                    url = 'http://localhost/gas_storage/foto_profil/${_cUser.user.id}/$foto';
+                                  }
+                                  final ts = _cUser.user.fotoUpdatedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+                                  url = (url.contains('?') ? '$url&t=$ts' : '$url?t=$ts');
+                                  imageProvider = NetworkImage(url);
+                                } else {
+                                  imageProvider = const AssetImage('assets/images/default_avatar.png');
+                                }
+                                return CircleAvatar(
+                                  radius: 40,
+                                  backgroundImage: imageProvider,
+                                  onBackgroundImageError: (_, __) {},
+                                  child: (foto == null || foto.isEmpty)
+                                      ? const Icon(Icons.person, size: 40, color: Colors.grey)
+                                      : null,
+                                );
+                              },
                             ),
                             const SizedBox(width: 16),
                             Column(
@@ -566,7 +588,7 @@ class PengaturanProfil extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.lock_outline),
-              title: const Text('Ubah PIN Keamanan'),
+              title: const Text('Ubah PIN Transaksi'),
               onTap: () => Get.to(() => const UbahPinPage()),
             ),
             const SizedBox(height: 8),
@@ -582,8 +604,17 @@ class PengaturanProfil extends StatelessWidget {
               onTap: () async {
                 // Navigate to edit profile and wait for it to return
                 await Get.to(() => EditProfilePage());
-                // After returning, refresh the profile data
-                // This will be caught by the profile page's didChangeAppLifecycleState
+                // After returning, refresh profile data from server to get fresh signed URLs
+                try {
+                  final user = await EventPref.getUser();
+                  if (user != null && user.id != null) {
+                    final fresh = await EventDB.getProfilLengkap(user.id!);
+                    if (fresh != null) {
+                      await EventPref.saveUser(fresh);
+                      try { Get.find<CUser>().setUser(fresh); } catch (_) {}
+                    }
+                  }
+                } catch (_) {}
               },
             ),
             const SizedBox(height: 8),
