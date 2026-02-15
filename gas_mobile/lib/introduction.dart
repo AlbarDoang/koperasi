@@ -15,7 +15,7 @@ class _IntroductionPageState extends State<IntroductionPage> {
   int currentPage = 0;
 
   final List<Map<String, dynamic>> pages = [
-    { 
+    {
       "title": "Daftar Akun Koperasi GAS",
       "body":
           "Membuat akun Koperasi GAS bisa dengan mendatangi kantor Koperasi GAS atau lewat Aplikasi Koperasi GAS ini.",

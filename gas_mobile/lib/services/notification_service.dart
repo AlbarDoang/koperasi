@@ -44,7 +44,6 @@ class NotificationService {
       icon: Icons.warning_amber_rounded,
     );
   }
-
   static void showWarningYellow(String message) {
     _show(
       message,
@@ -52,7 +51,6 @@ class NotificationService {
       icon: Icons.warning_amber_rounded,
     );
   }
-
   static void showInfo(String message) {
     _show(
       message,

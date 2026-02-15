@@ -50,6 +50,9 @@ class _TransferPageState extends State<TransferPage> {
   void _onSelectOption(String key) {
     if (key == 'banks') {
       NotificationService.showWarning('Fitur transfer ke bank belum tersedia');
+    // For banks / e-wallet we show an informational notice until backend is ready
+    if (key == 'banks' || key == 'ewallet') {
+      NotificationService.showInfo('Metode transfer ini belum tersedia');
       return;
     }
 

@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
+=======
+import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/page/transfer_to_friend.dart';
@@ -667,6 +669,10 @@ class _TransferGasPageState extends State<TransferGasPage> {
                       ),
                       TextButton.icon(
                         onPressed: _isLoading ? null : _handleSyncContacts,
+                        onPressed: () async {
+                          // Placeholder: contact sync not yet implemented
+                          NotificationService.showInfo('Sinkronisasi kontak akan datang di pembaruan berikutnya.');
+                        },
                         icon: const Icon(Icons.sync, size: 18),
                         label: const Text('Sinkronkan'),
                       ),
@@ -826,6 +832,34 @@ class _TransferGasPageState extends State<TransferGasPage> {
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
                             vertical: 2,
+                        final contact = _filteredContacts[index];
+                        return GestureDetector(
+                          onTap: () {
+                            NotificationService.showSuccess(
+                              'Memilih: ${contact['name']} - ${contact['phone']}',
+                            );
+                          },
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildContactAvatar(
+                                contact['avatar'],
+                                contact['name'],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                contact['name'],
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.roboto(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF333333),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+>>>>>>> 2daba67a27e3528b56eca37d6591ed1d8db1e69d
                           ),
                           leading: CircleAvatar(
                             backgroundColor: const Color(0xFFFFE4D6),
