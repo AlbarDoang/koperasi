@@ -104,11 +104,11 @@ class _AktivasiAkunPageState extends State<AktivasiAkunPage>
 
   void _showCustomBanner(String message, {Color color = Colors.orange}) async {
     if (color == Colors.redAccent || color == Colors.red) {
-      NotificationService.showError(message);
+      NotificationHelper.showError(message);
     } else if (color == Colors.orange) {
-      NotificationService.showWarning(message);
+      NotificationHelper.showWarning(message);
     } else {
-      NotificationService.showSuccess(message);
+      NotificationHelper.showSuccess(message);
     }
   }
 

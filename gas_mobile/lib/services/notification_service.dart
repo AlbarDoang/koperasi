@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 
 /// Centralized notification service that uses a custom [Overlay] to display
 /// notifications at the **top** of the screen **without** requiring
@@ -13,8 +15,8 @@ import 'package:get/get.dart';
 /// NotificationService.showWarning('Perhatian!');
 /// NotificationService.showInfo('Informasi');
 /// ```
-class NotificationService {
-  NotificationService._();
+class NotificationHelper {
+  NotificationHelper._();
 
   static OverlayEntry? _currentEntry;
   static Timer? _dismissTimer;
@@ -44,6 +46,7 @@ class NotificationService {
       icon: Icons.warning_amber_rounded,
     );
   }
+
   static void showWarningYellow(String message) {
     _show(
       message,
@@ -51,10 +54,11 @@ class NotificationService {
       icon: Icons.warning_amber_rounded,
     );
   }
+
   static void showInfo(String message) {
     _show(
       message,
-      backgroundColor: const Color(0xFF1E88E5),
+      backgroundColor: const Color(0xFFFB8C00),
       icon: Icons.info_outline,
     );
   }
@@ -227,5 +231,47 @@ class _TopNotificationState extends State<_TopNotification>
         ),
       ),
     );
+  }
+}
+
+class NotificationService extends ChangeNotifier {
+  int unreadCount = 0;
+  Timer? _timer;
+  final String baseUrl;
+  final int userId;
+
+  NotificationService({required this.baseUrl, required this.userId});
+
+  void start() {
+    fetchUnreadCount();
+    _timer = Timer.periodic(Duration(seconds: 5), (_) {
+      fetchUnreadCount();
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+  }
+
+Future<void> fetchUnreadCount() async {
+  try {
+    final response = await http.get(
+      Uri.parse("$baseUrl/unread_count.php?id_pengguna=$userId"),
+    );
+
+    final data = json.decode(response.body);
+
+    if (data['success']) {
+      unreadCount = data['total'];
+      notifyListeners();
+    }
+  } catch (e) {
+    print("Notification fetch error: $e");
+  }
+}
+
+  void resetCount() {
+    unreadCount = 0;
+    notifyListeners();
   }
 }

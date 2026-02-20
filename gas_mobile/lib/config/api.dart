@@ -3,79 +3,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 class Api {
-  // Base URL can be overridden at runtime for debugging (emulator vs LAN).
-  // Persisted in SharedPreferences under key 'API_BASE_OVERRIDE'.
-  static String baseUrl = _resolveBaseUrl();
+// =============================
+// DEBUG OVERRIDE (DUMMY)
+// =============================
+static String? _override;
 
-  static const String _prefKey = 'API_BASE_OVERRIDE';
-  static const String overrideEmulator = 'emulator';
-  static const String overrideLan = 'lan';
-  static const String overrideAuto = 'auto';
-  // Production Base URL (centralized configuration)
-  // âš ï¸ UPDATE ONLY THIS VALUE IF NEEDED
-  static const String _defaultLan = 'https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api';
-  static const String _defaultEmulator = 'https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api';
+static const String overrideAuto = "auto";
+static const String overrideLan = "lan";
+static const String overrideEmulator = "emulator";
 
-  /// Initialize Api config and apply any persisted debug override.
-  /// Call this during app startup (before network calls).
-  static Future<void> init() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // FORCE CLEAR OLD CACHED VALUES - remove any old IP/http overrides
-      final over = prefs.getString(_prefKey);
-      if (over != null && (over.contains('192.168') || over.contains('10.0.2.2') || over.startsWith('http://'))) {
-        await prefs.remove(_prefKey);
-        if (kDebugMode) print('ðŸ"„ CLEARED OLD CACHED BASE URL OVERRIDE (contained old IP or http URL)');
-      }
-      
-      final currentOverride = prefs.getString(_prefKey);
-      if (currentOverride == overrideEmulator) {
-        baseUrl = _sanitizeBaseUrl(_defaultEmulator);
-      } else if (currentOverride == overrideLan) {
-        baseUrl = _sanitizeBaseUrl(_defaultLan);
-      } else {
-        baseUrl = _resolveBaseUrl();
-      }
-      
-      if (kDebugMode) print('âœ… FINAL BASE URL INITIALIZED: $baseUrl');
-    } catch (e) {
-      // If anything goes wrong, fall back to the normal resolution logic
-      baseUrl = _resolveBaseUrl();
-      if (kDebugMode) print('âš ï¸ API.init() error, fell back to: $baseUrl');
-    }
-  }
+// DEFAULT NGROK URL - sudah dikonfigurasi dengan benar
+// Ganti dengan ngrok URL kamu jika berubah
+static const String _defaultLan = "https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api";
 
-  /// Set a persisted override: 'emulator', 'lan', or 'auto' (remove).
-  static Future<void> setOverride(String? value) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (value == null || value == overrideAuto) {
-      await prefs.remove(_prefKey);
-      baseUrl = _resolveBaseUrl();
-    } else if (value == overrideEmulator) {
-      await prefs.setString(_prefKey, overrideEmulator);
-      baseUrl = _sanitizeBaseUrl(_defaultEmulator);
-    } else if (value == overrideLan) {
-      await prefs.setString(_prefKey, overrideLan);
-      baseUrl = _sanitizeBaseUrl(_defaultLan);
-    }
-  }
+static Future<void> init() async {}
 
-  static Future<String?> getOverride() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_prefKey);
-  }
+static Future<void> setOverride(String? value) async {
+  _override = value;
+}
+
+static Future<String?> getOverride() async {
+  return _override;
+}
 
   static String _resolveBaseUrl() {
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.trim().isNotEmpty) {
       final resolved = _sanitizeBaseUrl(envUrl);
-      if (kDebugMode) print('ðŸ“ Base URL from .env: $resolved');
+      if (kDebugMode) print('🌍 Base URL from .env: $resolved');
       return resolved;
     }
-    // Default to the developer machine LAN IP so physical devices can reach API.
-    // If you run on Android emulator you can set `.env` to use 10.0.2.2 instead.
-    if (kDebugMode) print('ðŸ“ Using default Base URL: $_defaultLan');
+    // Default to ngrok URL or your configured server
+    if (kDebugMode) print('🌍 Using default Base URL: $_defaultLan');
     return _defaultLan;
   }
 
@@ -86,6 +45,9 @@ class Api {
     }
     return sanitized;
   }
+
+  // Base URL property - resolve once and cache the value
+  static late final String baseUrl = _resolveBaseUrl();
 
   static String _endpoint(String file) => '$baseUrl/$file';
 
@@ -198,4 +160,3 @@ class Api {
   // Health-check endpoint used by the mobile client to verify reachability
   static String get ping => _endpoint('ping.php');
 }
-

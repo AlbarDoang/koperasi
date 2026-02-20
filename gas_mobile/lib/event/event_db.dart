@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:tabungan/src/file_io.dart';
 import 'package:flutter/material.dart';
 import 'package:tabungan/model/transfer.dart';
@@ -22,7 +23,7 @@ import 'package:tabungan/login.dart';
 class EventDB {
   // Notification helpers – delegate to NotificationService (no context needed).
   static void _showSuccess(String message, [BuildContext? ctx]) =>
-      NotificationService.showSuccess(message);
+      NotificationHelper.showSuccess(message);
 
 
   // Change password (user initiated)
@@ -171,13 +172,13 @@ class EventDB {
   }
 
   static void _showError(String message, [BuildContext? ctx]) =>
-      NotificationService.showError(message);
+      NotificationHelper.showError(message);
 
   static void _showInfo(String message, [BuildContext? ctx]) =>
-      NotificationService.showInfo(message);
+      NotificationHelper.showInfo(message);
 
   static void _showWarning(String message, [BuildContext? ctx]) =>
-      NotificationService.showWarning(message);
+      NotificationHelper.showWarning(message);
 
   // Helper: safely parse JSON response and avoid FormatException
   static dynamic _parseJsonSafeFromResponse(
@@ -943,7 +944,7 @@ class EventDB {
     return null;
   }
 
-  // Get notifications for a user from server
+  // Get notifications for a user from server - dengan SSL bypass untuk ngrok
   static Future<List<Map<String, dynamic>>> getNotifications(
     String idPengguna,
   ) async {
@@ -951,27 +952,33 @@ class EventDB {
       final url = '${Api.getNotifications}?id_pengguna=$idPengguna';
       if (kDebugMode) debugPrint('📬 getNotifications REQUEST URL: $url');
       
-      var response = await http
-          .get(
-            Uri.parse(url),
-          )
-          .timeout(const Duration(seconds: 20));
+      // ✅ SOLUSI: Gunakan HttpClient dengan SSL bypass untuk ngrok development
+      final httpClient = HttpClient();
+      // Disable SSL certificate verification (for ngrok development)
+      // WARNING: Jangan pakai di production!
+      httpClient.badCertificateCallback = (cert, host, port) => true;
+      
+      final request = await httpClient.getUrl(Uri.parse(url));
+      final response = await request.close().timeout(const Duration(seconds: 20));
       
       if (kDebugMode) debugPrint('📬 getNotifications RESPONSE CODE: ${response.statusCode}');
-      if (kDebugMode) debugPrint('📬 getNotifications RESPONSE BODY: ${response.body}');
+      
+      // Baca response body
+      final body = await response.transform(utf8.decoder).join();
+      if (kDebugMode) debugPrint('📬 getNotifications RESPONSE BODY: $body');
       
       if (response.statusCode == 200) {
-        final body = _parseJsonSafeFromResponse(
-          response,
-          context: 'getNotifications',
-          showToast: false,
-        );
-        if (body != null && (body['success'] == true) && body['data'] is List) {
-          final List list = body['data'];
-          if (kDebugMode) debugPrint('📬 getNotifications SUCCESS: ${list.length} items');
-          return list.map((e) => Map<String, dynamic>.from(e)).toList();
-        } else {
-          if (kDebugMode) debugPrint('📬 getNotifications: success=false or data is not List');
+        try {
+          final json = jsonDecode(body);
+          if (json != null && (json['success'] == true) && json['data'] is List) {
+            final List list = json['data'];
+            if (kDebugMode) debugPrint('📬 getNotifications SUCCESS: ${list.length} items');
+            return list.map((e) => Map<String, dynamic>.from(e)).toList();
+          } else {
+            if (kDebugMode) debugPrint('📬 getNotifications: success=false or data is not List');
+          }
+        } catch (e) {
+          if (kDebugMode) debugPrint('📬 getNotifications JSON parse error: $e');
         }
       } else {
         if (kDebugMode) debugPrint('📬 getNotifications: HTTP ${response.statusCode}');

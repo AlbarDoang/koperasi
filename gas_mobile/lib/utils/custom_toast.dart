@@ -18,27 +18,27 @@ class CustomToast {
     if (baseColor == Colors.redAccent ||
         baseColor.value == const Color(0xFFE53935).value ||
         baseColor == Colors.red) {
-      NotificationService.showError(message);
+      NotificationHelper.showError(message);
     } else if (baseColor == Colors.orange ||
         baseColor.value == const Color(0xFFFB8C00).value) {
-      NotificationService.showWarning(message);
+      NotificationHelper.showWarning(message);
     } else if (baseColor == Colors.blue ||
         baseColor.value == const Color(0xFF1E88E5).value) {
-      NotificationService.showInfo(message);
+      NotificationHelper.showInfo(message);
     } else {
-      NotificationService.showSuccess(message);
+      NotificationHelper.showSuccess(message);
     }
   }
 
   static void success(BuildContext context, String message) =>
-      NotificationService.showSuccess(message);
+      NotificationHelper.showSuccess(message);
 
   static void error(BuildContext context, String message) =>
-      NotificationService.showError(message);
+      NotificationHelper.showError(message);
 
   static void warning(BuildContext context, String message) =>
-      NotificationService.showWarning(message);
+      NotificationHelper.showWarning(message);
 
   static void info(BuildContext context, String message) =>
-      NotificationService.showInfo(message);
+      NotificationHelper.showInfo(message);
 }

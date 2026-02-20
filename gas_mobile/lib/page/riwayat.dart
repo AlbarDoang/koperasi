@@ -751,7 +751,7 @@ list = NotifikasiHelper.sortNotificationsNewestFirst(list);
               );
               setState(() {});
               await _saveAll(items);
-              NotificationService.showSuccess('Transaksi dihapus');
+              NotificationHelper.showSuccess('Transaksi dihapus');
               return true;
             }
             return false;

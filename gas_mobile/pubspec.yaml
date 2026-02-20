@@ -30,6 +30,8 @@ dependencies:
   permission_handler: ^12.0.1
   flutter_contacts: ^1.1.9
   path_provider: ^2.0.12
+  provider: ^6.1.5+1
+  share_plus: ^12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -58,8 +60,10 @@ flutter:
     - assets/slide3.png
     - assets/slide4.png
     - assets/Donate.png
+    - assets/qris.png
     - assets/Request Money.png
     - assets/Exchange.png
     - assets/icons/facebook.png
     - assets/icons/instagram.png
     - assets/icons/linkedin.png
+    

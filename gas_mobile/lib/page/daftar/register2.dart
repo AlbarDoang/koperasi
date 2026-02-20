@@ -74,9 +74,9 @@ class _Register2PageState extends State<Register2Page>
     
     if (mounted) {
       if (isSuccess) {
-        NotificationService.showSuccess(message);
+        NotificationHelper.showSuccess(message);
       } else {
-        NotificationService.showError(message);
+        NotificationHelper.showError(message);
       }
     }
   }

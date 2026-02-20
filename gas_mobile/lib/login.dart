@@ -106,9 +106,9 @@ class _LoginPageState extends State<LoginPage>
 
       // Show error notification based on type
       if (notifType == 'warning') {
-        NotificationService.showWarning(message);
+        NotificationHelper.showWarning(message);
       } else {
-        NotificationService.showError(message);
+        NotificationHelper.showError(message);
       }
       return;
     }
@@ -122,18 +122,18 @@ class _LoginPageState extends State<LoginPage>
 
       if (needsPin) {
         // PIN transaksi BELUM diset: notifikasi formal lalu arahkan ke Set PIN, lalu hentikan eksekusi
-        NotificationService.showSuccess('Login berhasil. Silakan atur PIN transaksi untuk keamanan akun Anda.');
+        NotificationHelper.showSuccess('Login berhasil. Silakan atur PIN transaksi untuk keamanan akun Anda.');
         Get.offAllNamed('/setpin');
         return;
       } else {
         // PIN transaksi SUDAH diset: notifikasi formal lalu arahkan ke Dashboard, lalu hentikan eksekusi
-        NotificationService.showSuccess('Login berhasil. Selamat datang kembali.');
+        NotificationHelper.showSuccess('Login berhasil. Selamat datang kembali.');
         Get.offAll(() => const Dashboard());
         return;
       }
     } else {
       // Unexpected: no error flag and no user data
-      NotificationService.showError(
+      NotificationHelper.showError(
         'Login gagal. Nomor ponsel mungkin belum terdaftar atau password salah. Silakan coba lagi.',
       );
     }

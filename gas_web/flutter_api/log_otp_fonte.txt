@@ -38,5 +38,3 @@
 2026-02-14T23:19:31+07:00 - FONNTE_SEND_SUCCESS target=6281990608817 response={"detail":"success! message in queue","id":[143776511],"process":"pending","quota":{"087822451601":{"details":"deduced from total quota","quota":796,"remaining":795,"used":1}},"requestid":382506304,"status":true,"target":["6281990608817"]}
 2026-02-14T23:21:11+07:00 - FONNTE_SEND target=6287822451601 http_code=200 curl_err=
 2026-02-14T23:21:11+07:00 - FONNTE_SEND_SUCCESS target=6287822451601 response={"detail":"success! message in queue","id":[143776552],"process":"pending","quota":{"087822451601":{"details":"deduced from total quota","quota":795,"remaining":794,"used":1}},"requestid":382507957,"status":true,"target":["6287822451601"]}
-=======
->>>>>>> 2daba67a27e3528b56eca37d6591ed1d8db1e69d

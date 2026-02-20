@@ -93,14 +93,14 @@ class _MulaiMenabungPageState extends State<MulaiMenabungPage> {
   Future<void> _confirmTopup() async {
     final text = _amountCtrl.text.trim();
     if (text.isEmpty) {
-      NotificationService.showError('Masukkan jumlah top-up terlebih dahulu');
+      NotificationHelper.showError('Masukkan jumlah top-up terlebih dahulu');
       return;
     }
     // strip non-numeric characters before parsing
     final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = int.tryParse(digits);
     if (amount == null || amount <= 0) {
-      NotificationService.showError('Jumlah tidak valid');
+      NotificationHelper.showError('Jumlah tidak valid');
       return;
     }
 
@@ -159,7 +159,7 @@ class _MulaiMenabungPageState extends State<MulaiMenabungPage> {
     // validate based on metode
         // Only allow 'Uang Tunai'
         if (_paymentMethod != 'Uang Tunai') {
-          NotificationService.showInfo('Metode pembayaran ini belum tersedia');
+          NotificationHelper.showInfo('Metode pembayaran ini belum tersedia');
           return;
         }
 

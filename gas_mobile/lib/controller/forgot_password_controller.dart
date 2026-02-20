@@ -9,11 +9,11 @@ import 'dart:convert';
 
 // Helper to show top-styled notifications safely
 Future<void> _showSuccessMessage(String message, {Duration duration = const Duration(seconds: 2)}) async {
-  NotificationService.showSuccess(message);
+  NotificationHelper.showSuccess(message);
 }
 
 Future<void> _showErrorMessage(String message, {Duration duration = const Duration(seconds: 2)}) async {
-  NotificationService.showError(message);
+  NotificationHelper.showError(message);
 }
 
 class ForgotPasswordController extends GetxController {

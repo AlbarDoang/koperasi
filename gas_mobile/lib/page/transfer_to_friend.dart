@@ -1,60 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-import 'package:tabungan/page/orange_header.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:tabungan/page/transfer_confirm.dart';
 
 class TransferToFriendPage extends StatefulWidget {
-  final String phone;
+  final String userId;
+  final String? phone;
   final String? recipientName;
   final String? recipientId;
   final bool isFirstTransfer;
-  const TransferToFriendPage({super.key, required this.phone, this.recipientName, this.recipientId, this.isFirstTransfer = true});
+  const TransferToFriendPage({
+    Key? key,
+    required this.userId,
+    this.phone,
+    this.recipientName,
+    this.recipientId,
+    this.isFirstTransfer = false,
+  }) : super(key: key);
 
   @override
   State<TransferToFriendPage> createState() => _TransferToFriendPageState();
 }
 
 class _TransferToFriendPageState extends State<TransferToFriendPage> {
-  final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
+  int jumlahNotif = 0;
+  late final TextEditingController _amountController;
+  late final TextEditingController _noteController;
 
   @override
   void initState() {
     super.initState();
-    _amountController.addListener(_formatCurrency);
+    _amountController = TextEditingController();
+    _noteController = TextEditingController();
+    _amountController.addListener(() {
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _amountController.removeListener(_formatCurrency);
     _amountController.dispose();
     _noteController.dispose();
     super.dispose();
-  }
-
-  void _formatCurrency() {
-    final raw = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (raw.isEmpty) {
-      if (_amountController.text.isNotEmpty) {
-        _amountController.clear();
-      }
-      if (mounted) setState(() {});
-      return;
-    }
-    final val = int.tryParse(raw) ?? 0;
-    final formatted = NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp ',
-      decimalDigits: 0,
-    ).format(val);
-    if (_amountController.text != formatted) {
-      _amountController.value = _amountController.value.copyWith(
-        text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
-      );
-    }
-    if (mounted) setState(() {});
   }
 
   int _amountValue() {
@@ -64,224 +51,212 @@ class _TransferToFriendPageState extends State<TransferToFriendPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final amountVal = _amountValue();
-
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: OrangeHeader(title: 'Kirim ke Teman'),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+        title: const Text('Kirim ke Teman'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        // Tidak ada actions (icon notifikasi dihilangkan)
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              // Recipient info
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.07),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: const Color(0xFFFFF3E9),
-                        child: const Icon(
-                          Icons.person,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: const Color(0xFFFFF3E9),
+                      child: Icon(Icons.person, color: Color(0xFFFF6A00), size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.recipientName ?? '-',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.phone ?? '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE4D6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'BARU',
+                        style: TextStyle(
+                          fontSize: 11,
                           color: Color(0xFFFF6A00),
-                          size: 28,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                                  child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                                    Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.recipientName ?? widget.phone,
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      if (widget.recipientName != null)
-                                        Text(widget.phone, style: GoogleFonts.roboto(fontSize: 12, color: Colors.grey)),
-                                    ],
-                                  ),
-                                ),
-                                if (widget.isFirstTransfer)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF3E9),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'BARU',
-                                      style: GoogleFonts.roboto(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFFFF6A00),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Kamu akan mengirim ke nomor ini',
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                color: theme.textTheme.bodySmall?.color,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               Text(
                 'JUMLAH KIRIM',
-                style: GoogleFonts.roboto(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 8),
-              TextFormField(
+              TextField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  hintText: '0',
+                  hintText: 'Rp 0',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Color(0xFFFF6A00), width: 1.5),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFFF6A00), width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   suffixIcon: _amountController.text.isNotEmpty
                       ? IconButton(
-                          onPressed: () =>
-                              setState(() => _amountController.clear()),
                           icon: const Icon(Icons.clear),
+                          onPressed: () => _amountController.clear(),
                         )
                       : null,
                 ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87),
               ),
-
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [10000, 50000, 100000, 500000].map((val) {
-                    final formatted = NumberFormat.currency(
-                      locale: 'id_ID',
-                      symbol: 'Rp ',
-                      decimalDigits: 0,
-                    ).format(val);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            setState(() => _amountController.text = formatted),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFFFC9B8)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          formatted,
-                          style: GoogleFonts.roboto(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-
               const SizedBox(height: 12),
-              TextFormField(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _quickAmountButton(_amountController, 10000),
+                  _quickAmountButton(_amountController, 50000),
+                  _quickAmountButton(_amountController, 100000),
+                  _quickAmountButton(_amountController, 500000),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextField(
                 controller: _noteController,
                 decoration: InputDecoration(
                   hintText: 'Tulis catatan "Makasih ya 🙏"',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  prefixIcon: const Icon(Icons.note_outlined),
+                  prefixIcon: const Icon(Icons.folder_open),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                maxLines: 2,
+                style: TextStyle(fontSize: 15),
               ),
-
-              const SizedBox(height: 24),
-              // NOTE: removed "Sembunyikan Nama Saya" and "Bagikan ke Aktivitas Feed" per UX decision
-
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
               Text(
                 'Cek lagi nama penerima dan nominal kirim sudah benar.',
-                style: GoogleFonts.roboto(
-                  fontSize: 12,
-                  color: theme.textTheme.bodySmall?.color,
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: amountVal > 0
+                      ? () {
+                          // Navigasi ke halaman konfirmasi
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TransferConfirmPage(
+                                phone: widget.phone ?? '',
+                                recipientName: widget.recipientName,
+                                amount: amountVal,
+                                note: _noteController.text,
+                                isFirstTransfer: widget.isFirstTransfer,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6A00),
+                    elevation: 2,
+                    shadowColor: const Color(0xFFFF6A00).withOpacity(0.2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    'LANJUT',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 64),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: SizedBox(
-          height: 56,
-          child: ElevatedButton(
-            onPressed: amountVal > 0
-                ? () {
-                    // navigate to PIN / confirmation page
-                    final amount = _amountValue();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TransferConfirmPage(
-                          phone: widget.phone,
-                          recipientName: widget.recipientName,
-                          amount: amount,
-                          note: _noteController.text.trim(),
-                          isFirstTransfer: widget.isFirstTransfer,
-                        ),
-                      ),
-                    );
-                  }
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF4C00),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'LANJUT',
-              style: GoogleFonts.roboto(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
+    );
+  }
+
+  Widget _quickAmountButton(TextEditingController controller, int amount) {
+    final formatted = 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: OutlinedButton(
+          onPressed: () {
+            controller.text = formatted;
+          },
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFFFF6A00), width: 1.5),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: Text(
+            formatted,
+            style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFFF6A00)),
           ),
         ),
       ),

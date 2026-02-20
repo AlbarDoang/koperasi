@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:tabungan/config/api.dart';
 // Use the correct launcher import (wrapper that exports the existing launcer.dart)
@@ -8,6 +9,8 @@ import 'package:tabungan/login.dart';
 import 'package:tabungan/page/daftar/register1.dart';
 import 'package:tabungan/page/daftar/register2.dart';
 import 'package:tabungan/page/aktivasi/setpin.dart';
+import 'package:provider/provider.dart';
+import 'package:tabungan/services/notification_service.dart';
 
 // Tambahkan import untuk dashboard (halaman utama yang baru)
 import 'package:tabungan/page/dashboard.dart';
@@ -21,7 +24,8 @@ import 'package:tabungan/page/bayar_listrik.dart';
 import 'package:tabungan/page/isi_pulsa.dart';
 import 'package:tabungan/page/isi_kuota.dart';
 import 'package:tabungan/page/mulai_menabung.dart';
-import 'package:tabungan/page/minta.dart';
+import 'package:tabungan/page/minta_page.dart';
+import 'package:tabungan/page/tentukan_jumlah_page.dart';
 import 'package:tabungan/page/notifikasi.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/page/pindai.dart';
@@ -33,7 +37,19 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:tabungan/services/network_test_service.dart';
 import 'package:tabungan/utils/app_messenger.dart';
 
+// ✅ Bypass SSL untuk ngrok development
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() async {
+  // ✅ AKTIFKAN SSL BYPASS - INI HARUS PALING PERTAMA!
+  HttpOverrides.global = MyHttpOverrides();
+  
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   // Initialize Api config (reads persisted debug override if present)
@@ -48,7 +64,21 @@ void main() async {
   // 🌐 Test network connectivity at startup (debug mode only)
   await NetworkTestService.testBackendConnectivity();
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider<NotificationService>(
+      create: (_) {
+        // ✅ AMBIL userId DARI USER YANG LOGIN (DYNAMIC - TIDAK HARDCODED!)
+        final user = Get.find<CUser>().user;
+        final userId = int.tryParse(user?.id?.toString() ?? '') ?? 0;
+        
+        return NotificationService(
+          baseUrl: "https://tetrapodic-riotous-rosario.ngrok-free.dev/gas/gas_web/flutter_api",
+          userId: userId,  // ✅ SETIAP USER AKAN DAPAT userId MEREKA SENDIRI!
+        )..start();
+      },
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -97,6 +127,8 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/isi_kuota', page: () => const IsiKuotaPage()),
         GetPage(name: '/mulai_menabung', page: () => const MulaiMenabungPage()),
         GetPage(name: '/minta', page: () => const MintaPage()),
+        GetPage(name: '/tentukan-jumlah', page: () => const TentukanjumlahPage()),
+        // ✅ ROUTE NOTIFIKASI MENGARAH KE notifikasi.dart
         GetPage(name: '/notifikasi', page: () => const NotifikasiPage()),
         GetPage(name: '/pindai', page: () => const PindaiPage()),
         GetPage(name: '/test-toast', page: () => const TestToastPage()),

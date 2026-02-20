@@ -8,10 +8,10 @@ void showCustomBanner(
   Color color = Colors.orange,
 }) {
   if (color == Colors.redAccent || color == Colors.red) {
-    NotificationService.showError(message);
+    NotificationHelper.showError(message);
   } else if (color == Colors.orange) {
-    NotificationService.showWarning(message);
+    NotificationHelper.showWarning(message);
   } else {
-    NotificationService.showSuccess(message);
+    NotificationHelper.showSuccess(message);
   }
 }

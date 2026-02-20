@@ -739,7 +739,7 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
     final tenor = _selectedTenor;
 
     if (name.isEmpty || price <= 0 || tenor <= 0) {
-      NotificationService.showError('Lengkapi nama barang, harga, dan tenor');
+      NotificationHelper.showError('Lengkapi nama barang, harga, dan tenor');
       return;
     }
 
@@ -813,7 +813,7 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        NotificationService.showSuccess(
+                        NotificationHelper.showSuccess(
                           'Pengajuan untuk $name berhasil dikirim',
                         );
                         // reset fields
@@ -892,7 +892,7 @@ class _PinjamanKreditPageState extends State<PinjamanKreditPage> {
                 final dp = _getParsed(_dpController.text);
                 final tenor = _selectedTenor;
                 if (dp > price) {
-                  NotificationService.showWarningYellow(
+                  NotificationHelper.showWarningYellow(
                     'DP harus lebih kecil dari harga barang',
                   );
                   return;

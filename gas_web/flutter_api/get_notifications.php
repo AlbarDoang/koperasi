@@ -1,7 +1,12 @@
 <?php
 /**
  * API: Get Notifications for a user
- * POST: id_pengguna
+ * POST/GET: id_pengguna, created_after (optional ISO 8601 timestamp)
+ * 
+ * CHANGES:
+ * - Added support for created_after filter (untuk incremental sync)
+ * - Return server timestamp untuk client tracking
+ * - Lebih efficient queries
  */
 include 'connection.php';
 header('Content-Type: application/json');
@@ -16,11 +21,15 @@ if (!in_array($method, ['POST', 'GET'])) {
 
 // Support id_pengguna via POST or GET for ease of debugging in a browser
 $id_pengguna_input = null;
+$created_after = null;
+
 if ($method === 'POST') {
     $id_pengguna_input = $_POST['id_pengguna'] ?? null;
+    $created_after = $_POST['created_after'] ?? null;
 } else {
     // GET
     $id_pengguna_input = $_GET['id_pengguna'] ?? null;
+    $created_after = $_GET['created_after'] ?? null;
 }
 
 // Ensure numeric id_pengguna for safe binding
@@ -31,11 +40,27 @@ if ($id_pengguna <= 0) {
 }
 
 try {
-    // Simpler: fetch all notifications for the user and apply filtering + normalization in PHP
-    $sql = "SELECT id, id_pengguna, type, title, message, data, read_status, created_at FROM notifikasi WHERE id_pengguna = ? ORDER BY created_at DESC LIMIT 200";
+    // Build query dengan optional timestamp filter
+    $sql = "SELECT id, id_pengguna, type, title, message, data, read_status, created_at 
+            FROM notifikasi 
+            WHERE id_pengguna = ?";
+    
+    $params = [$id_pengguna];
+    $types = 'i';
+    
+    // Filter by created_after jika ada (untuk incremental sync)
+    if ($created_after) {
+        $sql .= " AND created_at > ?";
+        $params[] = $created_after;
+        $types .= 's';
+    }
+    
+    $sql .= " ORDER BY created_at DESC LIMIT 200";
+    
     $stmt = $connect->prepare($sql);
     if (!$stmt) throw new Exception('Prepare failed: ' . $connect->error);
-    $stmt->bind_param('i', $id_pengguna);
+    
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $res = $stmt->get_result();
 
@@ -46,8 +71,6 @@ try {
 
         // Exclude noisy ones
         if (strpos($title_l, 'cashback') !== false || strpos($msg_l, 'cashback') !== false) continue;
-        
-
 
         // Normalize type: ensure non-empty, map legacy 'mulai_nabung' to 'tabungan',
         // and detect tabungan entries when type is missing so mobile will display them.
@@ -99,9 +122,15 @@ try {
         }
     }
 
-    echo json_encode(['success' => true, 'data' => $list]);
+    // Return response dengan server timestamp untuk client tracking
+    echo json_encode([
+        'success' => true, 
+        'data' => $list,
+        'timestamp' => date('c'),  // ISO 8601 format untuk client tracking
+        'server_time' => date('Y-m-d H:i:s'),  // Readable format untuk debug
+    ]);
 } catch (Exception $e) {
     error_log('get_notifications.php error: ' . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Terjadi kesalahan pada server']);
 }
-
+?>

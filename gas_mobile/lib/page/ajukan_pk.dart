@@ -259,13 +259,13 @@ class _AjukanPkPageState extends State<AjukanPkPage> {
   }) {
     switch (type) {
       case _NotifType.success:
-        NotificationService.showSuccess(message);
+        NotificationHelper.showSuccess(message);
         break;
       case _NotifType.error:
-        NotificationService.showError(message);
+        NotificationHelper.showError(message);
         break;
       case _NotifType.warning:
-        NotificationService.showWarning(message);
+        NotificationHelper.showWarning(message);
         break;
     }
   }

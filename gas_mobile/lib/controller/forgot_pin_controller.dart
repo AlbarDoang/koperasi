@@ -3,7 +3,6 @@ import 'package:tabungan/config/api.dart';
 import 'package:tabungan/config/http_client.dart' as http_client;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:tabungan/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -13,6 +12,7 @@ class ToastNotification {
   final Color color;
   final Duration duration;
   final IconData? icon;
+
   ToastNotification({
     required this.message,
     this.color = const Color(0xFF4CAF50),
@@ -33,13 +33,8 @@ class ForgotPinController extends GetxController {
 
   final RxInt currentStep = 0.obs;
   final RxInt resendSeconds = 0.obs;
-
   final RxInt otpValiditySeconds = 0.obs;
 
-  // Toast notification observable
-  final Rx<ToastNotification?> toastNotification = Rx<ToastNotification?>(null);
-
-  
   // Toast notification observable
   final Rx<ToastNotification?> toastNotification = Rx<ToastNotification?>(null);
 
@@ -52,9 +47,6 @@ class ForgotPinController extends GetxController {
   Timer? _resendTimer;
   Timer? _toastTimer;
   Timer? _otpValidityTimer;
-  
-  Timer? _resendTimer;
-  Timer? _toastTimer;
 
   void _startResendTimer(int seconds) {
     _resendTimer?.cancel();
@@ -110,14 +102,6 @@ class ForgotPinController extends GetxController {
       print('   Message: $message');
       print('   Dialog akan ditampilkan dari widget');
       print('${'=' * 80}\n');
-  // Helper to show error dialog - set state yang dialamati widget
-  void _showErrorDialog(String message) {
-    if (kDebugMode) {
-      print('\n${'='*80}');
-      print('❌ [_showErrorDialog] SETTING ERROR STATE');
-      print('   Message: $message');
-      print('   Dialog akan ditampilkan dari widget');
-      print('${'='*80}\n');
     }
     errorMessage.value = message;
     showErrorDialog.value = true;
@@ -131,11 +115,6 @@ class ForgotPinController extends GetxController {
       print('   Message: $message');
       print('   Dialog akan ditampilkan dari widget');
       print('${'=' * 80}\n');
-      print('\n${'='*80}');
-      print('✅ [_showSuccessDialog] SETTING SUCCESS STATE');
-      print('   Message: $message');
-      print('   Dialog akan ditampilkan dari widget');
-      print('${'='*80}\n');
     }
     successMessage.value = message;
     showSuccessDialog.value = true;
@@ -151,9 +130,6 @@ class ForgotPinController extends GetxController {
       print(
         '📢 [Controller] Toast: "$message" (color: $color, duration: ${duration.inSeconds}s)',
       );
-  void _showToast(String message, {Color color = const Color(0xFF4CAF50), Duration duration = const Duration(seconds: 3)}) {
-    if (kDebugMode) {
-      print('📢 [Controller] Toast: "$message" (color: $color, duration: ${duration.inSeconds}s)');
     }
     _toastTimer?.cancel();
     final notification = ToastNotification(
@@ -168,14 +144,6 @@ class ForgotPinController extends GetxController {
         toastNotification.value = null;
       }
     });
-    // Show via global NotificationService (no context / overlay needed)
-    if (color == Colors.red || color == Colors.redAccent) {
-      NotificationService.showError(message);
-    } else if (color == Colors.orange) {
-      NotificationService.showWarning(message);
-    } else {
-      NotificationService.showSuccess(message);
-    }
   }
 
   Future<void> requestOTP() async {
@@ -198,7 +166,6 @@ class ForgotPinController extends GetxController {
       final response = await http_client.HttpHelper.post(
         Uri.parse(Api.forgotPassword),
         body: {'no_hp': phoneNumber, 'type': 'pin'},
-        body: {'no_hp': phoneNumber},
       );
 
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
@@ -287,7 +254,6 @@ class ForgotPinController extends GetxController {
     try {
       if (kDebugMode) {
         print('\n${'=' * 80}');
-        print('\n${'='*80}');
         print('🔄 [verifyOTP] STARTING OTP VERIFICATION');
         print('   Phone: $phoneNumber');
         print('   OTP Code: $otpCode');
@@ -327,7 +293,6 @@ class ForgotPinController extends GetxController {
         print('   Message: $message');
         print('   Full Payload: $payload');
         print('${'=' * 80}\n');
-        print('${'='*80}\n');
       }
 
       if (isSuccess) {
@@ -343,9 +308,6 @@ class ForgotPinController extends GetxController {
         // Auto navigate to Reset PIN page after short delay
         await Future.delayed(const Duration(milliseconds: 800));
         currentStep.value = 2;
-          print('✅ [verifyOTP] OTP SUCCESS - Setting dialog state');
-        }
-        _showSuccessDialog('Kode OTP yang anda masukan benar');
       } else {
         if (kDebugMode) {
           print('❌ [verifyOTP] OTP VERIFICATION FAILED');
@@ -377,11 +339,11 @@ class ForgotPinController extends GetxController {
     final otpCode = otp.value.trim();
     final newPin = pinBaru.value.trim();
     final confirmPin = pinKonfirmasi.value.trim();
+
     if (phoneNumber.isEmpty ||
         otpCode.isEmpty ||
         newPin.isEmpty ||
         confirmPin.isEmpty) {
-    if (phoneNumber.isEmpty || otpCode.isEmpty || newPin.isEmpty || confirmPin.isEmpty) {
       _showToast(
         'Semua field wajib diisi',
         color: Colors.red,
@@ -431,12 +393,6 @@ class ForgotPinController extends GetxController {
         await Future.delayed(const Duration(seconds: 2));
         // Kembali ke halaman Pengaturan Akun (pop ForgotPinPage + UbahPin)
         Get.close(2);
-          message,
-          color: const Color(0xFF4CAF50),
-          duration: const Duration(seconds: 3),
-        );
-        await Future.delayed(const Duration(seconds: 1));
-        Get.offAllNamed('/login');
       } else {
         _showToast(
           message,

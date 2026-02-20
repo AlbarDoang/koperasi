@@ -39,12 +39,12 @@ class _SetPinPageState extends State<SetPinPage> {
 
     // Validasi PIN
     if (pin.length != 6 || pinConfirm.length != 6) {
-      NotificationService.showError('PIN harus 6 digit!');
+      NotificationHelper.showError('PIN harus 6 digit!');
       return;
     }
 
     if (pin != pinConfirm) {
-      NotificationService.showError('PIN tidak cocok. Silakan coba lagi.');
+      NotificationHelper.showError('PIN tidak cocok. Silakan coba lagi.');
       return;
     }
 
@@ -54,7 +54,7 @@ class _SetPinPageState extends State<SetPinPage> {
       // Get user data dari preferences
       final user = await EventPref.getUser();
       if (user == null || user.id == null) {
-        NotificationService.showError('Data user tidak ditemukan. Silakan login kembali.');
+        NotificationHelper.showError('Data user tidak ditemukan. Silakan login kembali.');
         return;
       }
 
@@ -72,7 +72,7 @@ class _SetPinPageState extends State<SetPinPage> {
       final message = payload['message']?.toString() ?? 'Tidak ada pesan';
 
       if (isSuccess) {
-        NotificationService.showSuccess(message);
+        NotificationHelper.showSuccess(message);
         
         if (!mounted) return;
         Future.delayed(const Duration(seconds: 2), () async {
@@ -95,12 +95,12 @@ class _SetPinPageState extends State<SetPinPage> {
           }
         });
       } else {
-        NotificationService.showError(message);
+        NotificationHelper.showError(message);
       }
     } on TimeoutException {
-      NotificationService.showError('Request timeout - Server tidak merespons');
+      NotificationHelper.showError('Request timeout - Server tidak merespons');
     } catch (e) {
-      NotificationService.showError('Gagal menyimpan PIN: $e');
+      NotificationHelper.showError('Gagal menyimpan PIN: $e');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

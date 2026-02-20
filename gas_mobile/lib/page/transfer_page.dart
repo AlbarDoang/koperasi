@@ -49,15 +49,12 @@ class _TransferPageState extends State<TransferPage> {
 
   void _onSelectOption(String key) {
     if (key == 'banks') {
-      NotificationService.showWarning('Fitur transfer ke bank belum tersedia');
-    // For banks / e-wallet we show an informational notice until backend is ready
-    if (key == 'banks' || key == 'ewallet') {
-      NotificationService.showInfo('Metode transfer ini belum tersedia');
+      NotificationHelper.showWarning('Fitur transfer ke bank belum tersedia');
       return;
     }
 
     if (key == 'ewallet') {
-      NotificationService.showWarning(
+      NotificationHelper.showWarning(
         'Fitur transfer ke E-Wallet belum tersedia',
       );
       return;
@@ -164,7 +161,6 @@ class _TransferPageState extends State<TransferPage> {
                 ],
               ),
             ),
-
             const Divider(height: 8, thickness: 8, color: Color(0xFFF5F5F5)),
             // Frequently transferred section
             Container(
@@ -184,16 +180,15 @@ class _TransferPageState extends State<TransferPage> {
                   // Frequent recipients: show either placeholder or horizontal list
                   if (_freqRecipients.isEmpty)
                     Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF5F0),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
+                      height: 220,
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 48,
-                            height: 48,
+                            width: 64,
+                            height: 64,
                             decoration: const BoxDecoration(
                               color: Color(0xFFFFE4D6),
                               shape: BoxShape.circle,
@@ -201,39 +196,34 @@ class _TransferPageState extends State<TransferPage> {
                             child: Center(
                               child: Image.asset(
                                 'assets/profile_placeholder.png',
-                                width: 32,
-                                height: 32,
+                                width: 40,
+                                height: 40,
                                 errorBuilder: (context, error, stackTrace) =>
                                     const Icon(
                                       Icons.person,
+                                      size: 40,
                                       color: Color(0xFFFF4C00),
                                     ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Masih sepi, nih',
-                                  style: GoogleFonts.roboto(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF333333),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Nanti yang sering kamu transfer bakal muncul di sini',
-                                  style: GoogleFonts.roboto(
-                                    fontSize: 12,
-                                    color: const Color(0xFF666666),
-                                  ),
-                                ),
-                              ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'Belum ada kontak disinkronkan',
+                            style: GoogleFonts.roboto(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF333333),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Kontak yang sering kamu transfer akan muncul di sini',
+                            style: GoogleFonts.roboto(
+                              fontSize: 12,
+                              color: Color(0xFF666666),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -251,6 +241,7 @@ class _TransferPageState extends State<TransferPage> {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => TransferToFriendPage(
+                                      userId: Get.find<CUser>().user.id?.toString() ?? '',
                                       phone: r['phone'] ?? '',
                                       recipientName: r['name'],
                                       recipientId: r['id']?.toString(),

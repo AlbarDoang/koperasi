@@ -4,8 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
-=======
-import 'package:tabungan/services/notification_service.dart';
 import 'package:tabungan/controller/c_user.dart';
 import 'package:tabungan/page/orange_header.dart';
 import 'package:tabungan/page/transfer_to_friend.dart';
@@ -22,14 +20,11 @@ class _TransferGasPageState extends State<TransferGasPage> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _contacts = [];
   List<Contact> _syncedContacts = [];
-
   List<Map<String, dynamic>> _filteredContacts = [];
   List<Contact> _filteredSyncedContacts = [];
   String? _newPhone;
   bool _showNewResult = false;
   bool _isLoading = false;
-
-  // Lookup state for new recipient
   String? _newRecipientName;
   String? _newRecipientId;
   bool _isFirstTransfer = true;
@@ -43,7 +38,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
     _filteredContacts = _contacts;
     _filteredSyncedContacts = _syncedContacts;
     _searchController.addListener(_filterContacts);
-    // Load frequent recipients for this user
     _loadFrequentRecipients();
   }
 
@@ -52,7 +46,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
       final cuser = Get.find<CUser>();
       final id = cuser.user.id;
       if (id == null) return;
-      // Load large list for complete transfer history (BARU badge check)
       final rec = await EventDB.getFrequentRecipients(id, limit: 1000);
       if (rec.isNotEmpty) {
         setState(() {
@@ -68,7 +61,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
               )
               .toList();
           _filteredContacts = _contacts;
-          // Store ALL past recipient IDs and phones for "BARU" check
           _allPastRecipientIds = rec
               .map((r) => r['id']?.toString() ?? '')
               .where((s) => s.isNotEmpty)
@@ -98,16 +90,13 @@ class _TransferGasPageState extends State<TransferGasPage> {
   void _filterContacts() {
     final query = _searchController.text.toLowerCase();
     final cleanQuery = query.replaceAll(RegExp(r'[^0-9]'), '');
-
     final isNewPhone =
         _isValidPhone(query) &&
         !_isPhoneInContacts(query) &&
         !_isPhoneInSyncedContacts(query) &&
         cleanQuery.isNotEmpty;
-
     setState(() {
       if (isNewPhone) {
-        // When it's a new valid phone, show the two result cards inline
         _filteredContacts = [];
         _filteredSyncedContacts = [];
         _newPhone = query;
@@ -128,27 +117,22 @@ class _TransferGasPageState extends State<TransferGasPage> {
         _filteredSyncedContacts = _filterSyncedContacts(query);
       }
     });
-
-    // Trigger async lookup for the recipient's real name
     if (isNewPhone) {
       _lookupRecipient(query);
     }
   }
 
-  /// Look up the recipient by phone to get their real name and check transfer history
   Future<void> _lookupRecipient(String phone) async {
     setState(() {
       _isLookingUp = true;
     });
     try {
       final user = await EventDB.inspectUser(phone);
-      // Only update if the phone is still the same (user may have typed more)
       if (_newPhone != phone) return;
       if (user != null) {
         final recipientId = user['id']?.toString() ?? '';
         final recipientName = user['nama']?.toString();
         final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-        // Check if we've ever transferred to this user before
         bool hasTransferredBefore = false;
         if (recipientId.isNotEmpty &&
             _allPastRecipientIds.contains(recipientId)) {
@@ -181,7 +165,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
   }
 
   bool _isValidPhone(String phone) {
-    // Validasi format nomor telepon Indonesia
     final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
     return cleanPhone.length >= 10 && cleanPhone.length <= 13;
   }
@@ -205,18 +188,14 @@ class _TransferGasPageState extends State<TransferGasPage> {
   }
 
   String _normalizePhone(String phone) {
-    // Keep digits and '+', then normalize to +62 and ensure leading '+'
     final cleaned = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (cleaned.isEmpty) return '';
-
     if (cleaned.startsWith('+')) {
       return cleaned;
     }
-
     if (cleaned.startsWith('0')) {
       return '+62${cleaned.substring(1)}';
     }
-
     return '+$cleaned';
   }
 
@@ -236,7 +215,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
   }
 
   Future<void> _handleSyncContacts() async {
-    // Ask for explicit confirmation before requesting permission
     final allow = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -262,41 +240,31 @@ class _TransferGasPageState extends State<TransferGasPage> {
         );
       },
     );
-
     if (allow == true) {
       await _syncContacts();
     }
   }
 
   Future<bool> _syncContacts() async {
-    // Toggle loading state for sync process
     setState(() {
       _isLoading = true;
     });
-
     try {
-      // Check permission using permission_handler for cross-platform safety
       var status = await Permission.contacts.status;
       if (!status.isGranted) {
         status = await Permission.contacts.request();
       }
-
       if (status.isPermanentlyDenied) {
-        // Send users to settings when permission is permanently denied
         await openAppSettings();
         return false;
       }
-
       if (!status.isGranted) {
         if (!mounted) return false;
-        // Notify user when permission is denied
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Izin akses kontak ditolak')),
         );
         return false;
       }
-
-      // Load contacts with full properties and no photos for performance
       final contacts = await FlutterContacts.getContacts(
         withProperties: true,
         withPhoto: false,
@@ -327,14 +295,16 @@ class _TransferGasPageState extends State<TransferGasPage> {
     String? recipientId,
     bool isFirstTransfer = true,
   }) {
+    final cuser = Get.find<CUser>();
+    final userId = cuser.user.id?.toString() ?? '';
     if (isFirstTransfer) {
       _showVerificationDialog(phone, isFirstTransfer: isFirstTransfer);
       return;
     }
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TransferToFriendPage(
+          userId: userId,
           phone: phone,
           recipientName: recipientName,
           recipientId: recipientId,
@@ -345,9 +315,7 @@ class _TransferGasPageState extends State<TransferGasPage> {
   }
 
   void _showVerificationDialog(String phone, {bool isFirstTransfer = true}) async {
-    // Try to lookup user by phone to show friendly name before confirming
     final user = await EventDB.inspectUser(phone);
-    // Show confirmation bottom sheet (reuse for both contact & bank flows)
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -451,10 +419,12 @@ class _TransferGasPageState extends State<TransferGasPage> {
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.of(context).pop();
-                            // Navigate to transfer page, pass name if available
-                            Navigator.of(this.context).push(
+                            final cuser = Get.find<CUser>();
+                            final userId = cuser.user.id?.toString() ?? '';
+                            Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => TransferToFriendPage(
+                                  userId: userId,
                                   phone: phone,
                                   recipientName: user != null
                                       ? user['nama']
@@ -504,7 +474,6 @@ class _TransferGasPageState extends State<TransferGasPage> {
         },
       );
     }
-
     return CircleAvatar(
       radius: 32,
       backgroundColor: const Color(0xFFFFE4D6),
@@ -515,392 +484,260 @@ class _TransferGasPageState extends State<TransferGasPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: OrangeHeader(title: 'Kirim Uang'),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Box Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Text(
+              'Kirim Cepat',
+              style: GoogleFonts.roboto(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF333333),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Kirim Cepat',
-                    style: GoogleFonts.roboto(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF333333),
-                    ),
+                  Icon(
+                    Icons.search,
+                    color: Color(0xFF999999),
+                    size: 20,
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.search,
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Masukkan nomor telepon',
+                        hintStyle: GoogleFonts.roboto(
+                          fontSize: 14,
                           color: Color(0xFF999999),
-                          size: 20,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              hintText: 'Masukkan nomor telepon',
-                              hintStyle: GoogleFonts.roboto(
-                                fontSize: 14,
-                                color: const Color(0xFF999999),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-
-            const Divider(height: 1, color: Color(0xFFEEEEEE), thickness: 1),
-
-            // Kirim Cepat (Recent contacts)
-            if (_filteredContacts.isNotEmpty && _searchController.text.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Kirim Cepat',
-                      style: GoogleFonts.roboto(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF333333),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_contacts.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'Belum ada riwayat transfer',
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            color: Theme.of(context).textTheme.bodySmall?.color,
-                          ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Semua Kontak',
+                  style: GoogleFonts.roboto(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _isLoading ? null : _handleSyncContacts,
+                  icon: Icon(Icons.sync, size: 18),
+                  label: Text('Sinkronkan'),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Builder(
+              builder: (context) {
+                if (_showNewResult && _newPhone != null) {
+                  return Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () => _goToTransfer(
+                          phone: _newPhone!,
+                          recipientName: _newRecipientName,
+                          recipientId: _newRecipientId,
+                          isFirstTransfer: _isFirstTransfer,
                         ),
-                      )
-                    else
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _contacts.take(5).map((contact) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 16),
-                              child: GestureDetector(
-                                onTap: () => _goToTransfer(
-                                  phone: contact['phone'],
-                                  recipientName: contact['name'],
-                                  recipientId: contact['id']?.toString(),
-                                  isFirstTransfer: false,
+                        child: Container(
+                          width: double.infinity,
+                          margin: EdgeInsets.symmetric(vertical: 8),
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Color(0xFFECECEC),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFFF3E9),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Color(0xFFFF6A00),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
                                 child: Column(
-                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildContactAvatar(
-                                      contact['avatar'],
-                                      contact['name'],
-                                    ),
-                                    const SizedBox(height: 8),
                                     Text(
-                                      contact['name'],
-                                      textAlign: TextAlign.center,
+                                      _isLookingUp
+                                          ? _newPhone!
+                                          : (_newRecipientName != null && _newRecipientName!.isNotEmpty)
+                                              ? '$_newRecipientName ($_newPhone)'
+                                              : _newPhone!,
                                       style: GoogleFonts.roboto(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: const Color(0xFF333333),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF333333),
                                       ),
                                     ),
+                                    if (_newRecipientName != null && _newRecipientName!.isNotEmpty && _isFirstTransfer)
+                                      SizedBox(height: 4),
+                                    if (_newRecipientName != null && _newRecipientName!.isNotEmpty && _isFirstTransfer)
+                                      Text(
+                                        'Kamu baru pertama kali kirim ke nomor ini. Pastikan tujuannya sudah benar dan tepercaya.',
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 11,
+                                          color: Theme.of(context).textTheme.bodySmall?.color,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                   ],
                                 ),
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-            const Divider(height: 1, color: Color(0xFFEEEEEE), thickness: 1),
-
-            // Semua Kontak Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Semua Kontak',
-                        style: GoogleFonts.roboto(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF333333),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _isLoading ? null : _handleSyncContacts,
-                        onPressed: () async {
-                          // Placeholder: contact sync not yet implemented
-                          NotificationService.showInfo('Sinkronisasi kontak akan datang di pembaruan berikutnya.');
-                        },
-                        icon: const Icon(Icons.sync, size: 18),
-                        label: const Text('Sinkronkan'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_showNewResult && _newPhone != null)
-                    Column(
-                      children: [
-                        // KONTAK result card (inline)
-                        GestureDetector(
-                          onTap: () => _goToTransfer(
-                            phone: _newPhone!,
-                            recipientName: _newRecipientName,
-                            recipientId: _newRecipientId,
-                            isFirstTransfer: _isFirstTransfer,
-                          ),
-                          child: Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFFECECEC),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
+                              if (_isFirstTransfer)
                                 Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E9),
-                                    borderRadius: BorderRadius.circular(20),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.person,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFFFF3E9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'BARU',
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
                                       color: Color(0xFFFF6A00),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _isLookingUp
-                                            ? _newPhone!
-                                            : (_newRecipientName != null &&
-                                                  _newRecipientName!.isNotEmpty)
-                                            ? '$_newRecipientName ($_newPhone)'
-                                            : _newPhone!,
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF333333),
-                                        ),
-                                      ),
-                                      if (_newRecipientName != null &&
-                                          _newRecipientName!.isNotEmpty &&
-                                          _isFirstTransfer)
-                                        const SizedBox(height: 4),
-                                      if (_newRecipientName != null &&
-                                          _newRecipientName!.isNotEmpty &&
-                                          _isFirstTransfer)
-                                        Text(
-                                          'Kamu baru pertama kali kirim ke nomor ini. Pastikan tujuannya sudah benar dan tepercaya.',
-                                          style: GoogleFonts.roboto(
-                                            fontSize: 11,
-                                            color: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall?.color,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (_isFirstTransfer)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF3E9),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'BARU',
-                                      style: GoogleFonts.roboto(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFFFF6A00),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    )
-                  else if (_isLoading)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: CircularProgressIndicator(),
                       ),
-                    )
-                  else if (_filteredSyncedContacts.isEmpty)
-                    Column(
+                    ],
+                  );
+                }
+                if (_isLoading) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (_filteredSyncedContacts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 12),
                         Icon(
-                          Icons.contacts,
-                          size: 48,
-                          color: Colors.grey.shade400,
+                          Icons.contact_page,
+                          size: 80,
+                          color: Colors.grey,
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 12),
                         Text(
                           'Belum ada kontak disinkronkan',
                           style: GoogleFonts.roboto(
                             fontSize: 13,
-                            color: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.color,
+                            color: Colors.grey,
                           ),
                         ),
                       ],
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _filteredSyncedContacts.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final contact = _filteredSyncedContacts[index];
-                        final name = contact.displayName ?? 'Kontak';
-                        final rawPhone = (contact.phones != null &&
-                            contact.phones!.isNotEmpty)
-                          ? contact.phones!.first.number
-                          : '';
-                        final firstPhone =
-                          rawPhone.trim().isEmpty ? '-' : rawPhone;
-                        final canTransfer = firstPhone != '-';
-
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                        final contact = _filteredContacts[index];
-                        return GestureDetector(
-                          onTap: () {
-                            NotificationService.showSuccess(
-                              'Memilih: ${contact['name']} - ${contact['phone']}',
-                            );
-                          },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildContactAvatar(
-                                contact['avatar'],
-                                contact['name'],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                contact['name'],
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.roboto(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF333333),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
->>>>>>> 2daba67a27e3528b56eca37d6591ed1d8db1e69d
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(0xFFFFE4D6),
-                            child: const Icon(
-                              Icons.person,
-                              color: Color(0xFFFF6A00),
-                            ),
-                          ),
-                          title: Text(
-                            name,
-                            style: GoogleFonts.roboto(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF333333),
-                            ),
-                          ),
-                          subtitle: Text(
-                            firstPhone,
-                            style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.color,
-                            ),
-                          ),
-                          onTap: canTransfer
-                              ? () => _goToTransfer(
-                                    phone: firstPhone,
-                                    recipientName: name,
-                                    isFirstTransfer: false,
-                                  )
-                              : null,
-                        );
-                      },
                     ),
-                ],
-              ),
+                  );
+                }
+                // Default: tampilkan daftar kontak
+                return ListView.separated(
+                  itemCount: _filteredSyncedContacts.length,
+                  separatorBuilder: (_, __) => Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final contact = _filteredSyncedContacts[index];
+                    final name = contact.displayName ?? 'Kontak';
+                    final rawPhone = (contact.phones != null && contact.phones!.isNotEmpty)
+                        ? contact.phones!.first.number
+                        : '';
+                    final firstPhone = rawPhone.trim().isEmpty ? '-' : rawPhone;
+                    final canTransfer = firstPhone != '-';
+                    return ListTile(
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: Color(0xFFFFE4D6),
+                        child: Icon(
+                          Icons.person,
+                          color: Color(0xFFFF6A00),
+                        ),
+                      ),
+                      title: Text(
+                        name,
+                        style: GoogleFonts.roboto(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      subtitle: Text(
+                        firstPhone,
+                        style: GoogleFonts.roboto(
+                          fontSize: 12,
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                        ),
+                      ),
+                      onTap: canTransfer
+                          ? () => _goToTransfer(
+                                phone: firstPhone,
+                                recipientName: name,
+                                isFirstTransfer: false,
+                              )
+                          : null,
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

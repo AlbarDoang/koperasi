@@ -2,10 +2,227 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:tabungan/event/event_pref.dart';
 import 'package:tabungan/event/event_db.dart';
+import 'package:tabungan/config/api.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 class NotifikasiHelper {
+  /// ✅ FIXED: Trigger global badge update (untuk dashboard)
+  static Future<void> triggerBadgeUpdate() async {
+    try {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] 🔔 triggerBadgeUpdate() called');
+      }
+      
+      final unreadCount = await getUnreadCount();
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] 📊 Current unread count: $unreadCount');
+      }
+      
+      // ✅ TRIGGER ValueNotifier untuk notify semua listeners
+      onNotificationsChanged.value++;
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ✅ Badge update triggered!');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ❌ ERROR in triggerBadgeUpdate: $e');
+      }
+    }
+  }
+
+  /// ✅ NEW: Mark ALL notifications as read di SERVER + local storage
+  static Future<void> markAllAsReadOnServer() async {
+    try {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] 🌐 markAllAsReadOnServer() START');
+      }
+
+      final user = await EventPref.getUser();
+      if (user == null || (user.id ?? '').isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[NotifikasiHelper] ❌ User not found');
+        }
+        return;
+      }
+
+      final userId = user.id.toString();
+
+      // Get semua unread notifications
+      final prefs = await SharedPreferences.getInstance();
+      final existing = prefs.getString('notifications') ?? '[]';
+      final List<dynamic> list = jsonDecode(existing);
+
+      // Collect unread notification IDs
+      List<String> unreadIds = [];
+      for (var n in list) {
+        if (n is Map<String, dynamic>) {
+          if ((n['read'] ?? false) == false) {
+            final nid = n['id'];
+            if (nid != null) {
+              unreadIds.add(nid.toString());
+            }
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] Found ${unreadIds.length} unread notifications');
+      }
+
+      // Mark each notification as read di server
+      for (final nid in unreadIds) {
+        try {
+          if (kDebugMode) {
+            debugPrint('[NotifikasiHelper] 📤 Sending to server: nid=$nid, uid=$userId');
+          }
+
+          final response = await http
+              .post(
+                Uri.parse('${Api.baseUrl}/update_notifikasi_read.php'),
+                body: {
+                  'id_notifikasi': nid,
+                  'id_pengguna': userId,
+                },
+              )
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            try {
+              final json = jsonDecode(response.body);
+              if (json['success'] == true) {
+                if (kDebugMode) {
+                  debugPrint('[NotifikasiHelper] ✅ Server mark: nid=$nid SUCCESS');
+                }
+              } else {
+                if (kDebugMode) {
+                  debugPrint('[NotifikasiHelper] ⚠️ Server mark failed: ${json['message']}');
+                }
+              }
+            } catch (e) {
+              if (kDebugMode) {
+                debugPrint('[NotifikasiHelper] ⚠️ Response parse error: $e');
+              }
+            }
+          } else {
+            if (kDebugMode) {
+              debugPrint('[NotifikasiHelper] ⚠️ HTTP ${response.statusCode}');
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[NotifikasiHelper] ⚠️ Error marking nid=$nid: $e');
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ✅ markAllAsReadOnServer() SUCCESS');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ❌ ERROR in markAllAsReadOnServer: $e');
+      }
+    }
+  }
+
+  /// ✅ FULLY FIXED: Tandai semua notifikasi sebagai sudah dibaca (read=true)
+  static Future<void> markAllAsRead() async {
+    try {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] 🔵 markAllAsRead() START');
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final user = await EventPref.getUser();
+      final ownerId = _ownerIdFromUser(user);
+      final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ownerId=$ownerId, storedOwnerId=$storedOwnerId');
+      }
+      
+      // BACA dari SharedPreferences
+      final existing = prefs.getString('notifications') ?? '[]';
+      final List<dynamic> list = jsonDecode(existing);
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] Total notifications in storage: ${list.length}');
+      }
+      
+      // Ubah LANGSUNG di list original (BUKAN copy)
+      bool changed = false;
+      for (var n in list) {
+        if (n is Map<String, dynamic>) {
+          // Cek apakah notifikasi ini untuk user saat ini
+          final isForThisUser = isForOwner(
+            n,
+            ownerId,
+            fallbackOwnerId: storedOwnerId,
+          );
+          
+          if (isForThisUser && ((n['read'] ?? false) == false)) {
+            n['read'] = true;
+            changed = true;
+            if (kDebugMode) {
+              debugPrint('[NotifikasiHelper] Marked as read: ${n['title']}');
+            }
+          }
+        }
+      }
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] Changed: $changed');
+      }
+      
+      // SAVE kembali ke SharedPreferences
+      if (changed) {
+        await prefs.setString('notifications', jsonEncode(list));
+        
+        if (kDebugMode) {
+          debugPrint('[NotifikasiHelper] ✅ Saved to SharedPreferences');
+        }
+      }
+      
+      // Verify dengan membaca kembali dari prefs
+      final verifyExisting = prefs.getString('notifications') ?? '[]';
+      final verifyList = jsonDecode(verifyExisting);
+      
+      int unreadAfter = 0;
+      for (var n in verifyList) {
+        if (n is Map<String, dynamic>) {
+          final isForThisUser = isForOwner(
+            n,
+            ownerId,
+            fallbackOwnerId: storedOwnerId,
+          );
+          if (isForThisUser && ((n['read'] ?? false) == false)) {
+            unreadAfter++;
+          }
+        }
+      }
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] Unread AFTER verification: $unreadAfter');
+      }
+      
+      // ✅ TRIGGER badge update SETELAH mark all as read
+      await triggerBadgeUpdate();
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ✅ markAllAsRead() SUCCESS - Unread: $unreadAfter');
+      }
+      
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ❌ ERROR in markAllAsRead: $e');
+      }
+    }
+  }
+
   // Notifier for UI to listen to changes in notifications store.
   static final ValueNotifier<int> onNotificationsChanged = ValueNotifier<int>(0);
 
@@ -30,8 +247,6 @@ class NotifikasiHelper {
     if (fallbackOwnerId != null && fallbackOwnerId.isNotEmpty) {
       return fallbackOwnerId == ownerId;
     }
-    // Notifications without owner_id should be kept (not dropped)
-    // to prevent data loss for older notifications or edge cases
     return true;
   }
 
@@ -40,16 +255,13 @@ class NotifikasiHelper {
     String ownerId, {
     String? fallbackOwnerId,
   }) {
-    // Use safe casting to avoid TypeError if any item is not a Map
     final safeCasted = <Map<String, dynamic>>[];
     for (final item in list) {
       try {
         if (item is Map) {
           safeCasted.add(Map<String, dynamic>.from(item));
         }
-      } catch (_) {
-        // Skip malformed entries instead of crashing
-      }
+      } catch (_) {}
     }
     if (ownerId.isEmpty) return safeCasted;
     return safeCasted.where((n) {
@@ -57,60 +269,103 @@ class NotifikasiHelper {
     }).toList();
   }
 
-  /// Fetch latest notifications from server and save *only* transaction notifications.
-  /// If fetching fails, keep existing local notifications to avoid showing an empty list.
+  /// ✅ NEW: Get last sync time dari SharedPreferences
+  /// Digunakan untuk incremental fetch dari server
+  static Future<DateTime?> getLastSyncTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSync = prefs.getString('notifications_last_sync');
+      if (lastSync != null && lastSync.isNotEmpty) {
+        return DateTime.parse(lastSync);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// ✅ NEW: Set last sync time ke SharedPreferences
+  static Future<void> setLastSyncTime(DateTime time) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('notifications_last_sync', time.toIso8601String());
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ✅ Last sync time updated: ${time.toIso8601String()}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ⚠️ Failed to set last sync time: $e');
+      }
+    }
+  }
+
+  /// ✅ NEW: Clear all notifications (untuk debug/reset)
+  static Future<void> clearAllNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('notifications');
+      await prefs.remove('notifications_owner_id');
+      await prefs.remove('notifications_last_sync');
+      await prefs.remove('last_local_notif');
+      onNotificationsChanged.value++;
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ✅ All notifications cleared');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ⚠️ Failed to clear notifications: $e');
+      }
+    }
+  }
+
   static bool _isExcludedNotification(Map<String, dynamic> n) {
     final title = (n['title'] ?? '').toString().toLowerCase();
     final msg = (n['message'] ?? '').toString().toLowerCase();
     final titleOrig = (n['title'] ?? '').toString();
     final type = (n['type'] ?? '').toString();
 
-    // Exclude cashback examples and various "processing/waiting for verification" messages per product request
     if (title.contains('cashback') || msg.contains('cashback')) return true;
-    
-    // ALWAYS ALLOW WITHDRAWAL RESULTS - These are critical decision notifications that MUST be shown
-    // Check for both title keywords for approval/rejection
-    final titleLowerForDecision = titleOrig.toLowerCase();
-    if ((titleLowerForDecision.contains('pencairan disetujui') || titleLowerForDecision.contains('pencairan ditolak')) ||
-        (titleLowerForDecision.contains('withdrawal') && (titleLowerForDecision.contains('approved') || titleLowerForDecision.contains('rejected') || titleLowerForDecision.contains('disetujui') || titleLowerForDecision.contains('ditolak')))) {
-      return false;  // ALWAYS SHOW withdrawal decision notifications
-    }
-    
-    // Exception: Always allow tabungan result notifications (e.g., 'Setoran Tabungan Disetujui', 'Setoran Tabungan Ditolak',
-    // or other variations like 'Setoran tabungan berhasil') — match using lowercase contains so variants are accepted
-    final titleLower = titleOrig.toLowerCase();
-    if (titleLower.contains('setoran') && (titleLower.contains('berhasil') || titleLower.contains('ditolak') || titleLower.contains('disetujui'))) return false;
 
-    // Allow explicit submission notifications for setoran (e.g., 'Pengajuan Setoran Tabungan') even if they contain
-    // words like 'menunggu' or 'verifikasi' so the user sees a clear confirmation right after submitting.
+    final titleLowerForDecision = titleOrig.toLowerCase();
+    if ((titleLowerForDecision.contains('pencairan disetujui') ||
+            titleLowerForDecision.contains('pencairan ditolak')) ||
+        (titleLowerForDecision.contains('withdrawal') &&
+            (titleLowerForDecision.contains('approved') ||
+                titleLowerForDecision.contains('rejected') ||
+                titleLowerForDecision.contains('disetujui') ||
+                titleLowerForDecision.contains('ditolak')))) {
+      return false;
+    }
+
+    final titleLower = titleOrig.toLowerCase();
+    if (titleLower.contains('setoran') &&
+        (titleLower.contains('berhasil') ||
+            titleLower.contains('ditolak') ||
+            titleLower.contains('disetujui')))
+      return false;
+
     if (titleLower.contains('pengajuan setoran')) return false;
 
-    // FIX: Allow 'sedang diproses' for withdrawal notifications (e.g., 'Permintaan Pencairan Sedang Diproses')
-    // These are important transaction status updates that users should see immediately.
-    // Only exclude generic processing/waiting messages for non-loan, non-withdrawal types.
-    if (titleLower.contains('pencairan') || titleLower.contains('withdrawal')) return false;
+    if (titleLower.contains('pencairan') || titleLower.contains('withdrawal'))
+      return false;
 
-    // Allow 'sedang diproses' for loan submissions so users see "Pengajuan sedang diproses" notices
-    // but filter them for other non-loan, non-withdrawal types (e.g., topup)
-    final isProcessingText = msg.contains('sedang diproses') || title.contains('sedang diproses') || 
-                             msg.contains('diproses') || title.contains('diproses') || 
-                             msg.contains('menunggu') || title.contains('menunggu') || 
-                             msg.contains('verifikasi') || title.contains('verifikasi');
-    
-    if (type != 'pinjaman' && type != 'pinjaman_kredit' && isProcessingText) return true;
+    final isProcessingText =
+        msg.contains('sedang diproses') ||
+        title.contains('sedang diproses') ||
+        msg.contains('diproses') ||
+        title.contains('diproses') ||
+        msg.contains('menunggu') ||
+        title.contains('menunggu') ||
+        msg.contains('verifikasi') ||
+        title.contains('verifikasi');
+
+    if (type != 'pinjaman' && type != 'pinjaman_kredit' && isProcessingText)
+      return true;
 
     return false;
   }
 
-  /// Public wrapper to check whether a notification should be excluded from display.
-  /// Returns true for notifications that are promotional or generic processing/waiting messages
-  /// which shouldn't be shown in the user's notification feed.
-  static bool isExcludedNotification(Map<String, dynamic> n) => _isExcludedNotification(n);
+  static bool isExcludedNotification(Map<String, dynamic> n) =>
+      _isExcludedNotification(n);
 
-  /// Merge a server-filtered notifications list with local existing list so local-only
-  /// notifications (e.g., newly-created topups) are preserved.
-  /// CRITICAL: Prefer LOCAL timestamp if fresher than SERVER (prevents showing old times)
-  /// Also respects the blacklist of deleted notifications to prevent resurrection.
   static List<Map<String, dynamic>> mergeServerWithExisting(
     List<Map<String, dynamic>> serverFiltered,
     List<dynamic> existingList, {
@@ -128,7 +383,6 @@ class NotifikasiHelper {
       return '${t}|${m}|${d}';
     }
 
-    // Parse created_at timestamp safely
     DateTime? parseTimestamp(dynamic createdAt) {
       try {
         if (createdAt is String && createdAt.isNotEmpty) {
@@ -138,16 +392,12 @@ class NotifikasiHelper {
       return null;
     }
 
-    // Create a set of keys from server results for fast lookup
     final Set<String> serverKeys = serverFiltered.map((n) => keyFor(n)).toSet();
-    
-    // Build a map: key -> server notification (for finding exact duplicates)
     final Map<String, Map<String, dynamic>> serverByKey = {};
     for (var n in serverFiltered) {
       serverByKey[keyFor(n)] = n;
     }
 
-    // Build map of record ID -> server notification (for timestamp comparison)
     final Map<String, Map<String, dynamic>> serverByRecordId = {};
     for (var n in serverFiltered) {
       try {
@@ -161,107 +411,128 @@ class NotifikasiHelper {
       } catch (_) {}
     }
 
-    // Start with server results FILTERED by blacklist
     final List<Map<String, dynamic>> merged = List<Map<String, dynamic>>.from(
       serverFiltered.where((n) {
         final key = keyFor(n);
         return !(blacklist?.contains(key) ?? false);
-      }).toList()
+      }).toList(),
     );
 
-    // Add or update with local notifications
     for (var e in existingList) {
       try {
         if (_isExcludedNotification(e)) continue;
       } catch (_) {}
 
-      // Skip if this notification is in the blacklist (user deleted it)
       final eKey = keyFor(Map<String, dynamic>.from(e));
       if (blacklist?.contains(eKey) ?? false) continue;
 
-      // Check if EXACT notification (by title+message) exists on server
       final exactServerMatch = serverByKey[eKey];
       if (exactServerMatch != null) {
-        // Exact match found! Compare timestamps
-        // CRITICAL: Prefer LOCAL if it's fresher
         final localTime = parseTimestamp(e['created_at']);
         final serverTime = parseTimestamp(exactServerMatch['created_at']);
-        
-        if (localTime != null && serverTime != null && localTime.isAfter(serverTime)) {
-          // Local is fresher! Replace server notif with local version
+        if (localTime != null &&
+            serverTime != null &&
+            localTime.isAfter(serverTime)) {
           merged.removeWhere((n) => keyFor(n) == eKey);
           merged.add(Map<String, dynamic>.from(e));
         }
-        // Otherwise server version is same/fresher, skip adding local
         continue;
       }
 
-      // Check if this local notification's record exists on server (by mulai_id)
       String? localRecordId;
       try {
         final ed = e['data'];
         if (ed != null && ed is Map) {
-          localRecordId = (ed['mulai_id'] ?? ed['id_mulai_nabung'])?.toString();
+          localRecordId =
+              (ed['mulai_id'] ?? ed['id_mulai_nabung'] ?? ed['id_transaksi'])
+                  ?.toString();
         }
       } catch (_) {}
 
       if (localRecordId != null && localRecordId.isNotEmpty) {
         final serverNotif = serverByRecordId[localRecordId];
         if (serverNotif != null) {
-          // Same record exists on server
-          // CRITICAL FIX: If local timestamp is FRESHER, use local instead of server
           final localTime = parseTimestamp(e['created_at']);
           final serverTime = parseTimestamp(serverNotif['created_at']);
-          
-          if (localTime != null && serverTime != null && localTime.isAfter(serverTime)) {
-            // Local is fresher! Replace server notif with local version
+          if (localTime != null &&
+              serverTime != null &&
+              localTime.isAfter(serverTime)) {
             merged.removeWhere((n) => keyFor(n) == keyFor(serverNotif));
             merged.add(Map<String, dynamic>.from(e));
           }
-          // Otherwise use server version (it's same or fresher)
           continue;
         }
       }
 
-      // No match found - add as new notification
       if (!serverKeys.contains(eKey)) {
         merged.add(Map<String, dynamic>.from(e));
         serverKeys.add(eKey);
       }
     }
 
-    return merged;
+    final Map<String, Map<String, dynamic>> uniqueSetoran = {};
+    final List<Map<String, dynamic>> finalMerged = [];
+    for (var notif in merged) {
+      final title = (notif['title'] ?? '').toString().toLowerCase();
+      if (title.contains('pengajuan setoran')) {
+        String? id = '';
+        final data = notif['data'];
+        if (data != null && data is Map) {
+          id =
+              (data['mulai_id'] ??
+                      data['id_mulai_nabung'] ??
+                      data['id_transaksi'])
+                  ?.toString() ??
+              '';
+        }
+        if (id != null && id.isNotEmpty) {
+          final existing = uniqueSetoran[id];
+          if (existing == null) {
+            uniqueSetoran[id] = notif;
+          } else {
+            final t1 = parseTimestamp(notif['created_at']);
+            final t2 = parseTimestamp(existing['created_at']);
+            if (t1 != null && t2 != null && t1.isAfter(t2)) {
+              uniqueSetoran[id] = notif;
+            }
+          }
+          continue;
+        }
+      }
+      finalMerged.add(notif);
+    }
+    finalMerged.addAll(uniqueSetoran.values);
+    return _sortNotificationsNewestFirst(finalMerged);
   }
 
-  /// Robust parse for various timestamp formats (ISO, "yyyy-MM-dd HH:mm:ss", unix secs/millis).
   static DateTime? _parseToDate(dynamic v) {
     if (v == null) return null;
     try {
       if (v is DateTime) return v;
       if (v is int) {
-        if (v.abs() > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(v);
+        if (v.abs() > 1000000000000)
+          return DateTime.fromMillisecondsSinceEpoch(v);
         return DateTime.fromMillisecondsSinceEpoch(v * 1000);
       }
       if (v is double) {
         final intVal = v.toInt();
-        if (intVal.abs() > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(intVal);
+        if (intVal.abs() > 1000000000000)
+          return DateTime.fromMillisecondsSinceEpoch(intVal);
         return DateTime.fromMillisecondsSinceEpoch(intVal * 1000);
       }
       final s = v.toString().trim();
-      // Try ISO-like parse
       try {
         return DateTime.parse(s);
       } catch (_) {}
-      // Try common format yyyy-MM-dd HH:mm:ss
       try {
         return DateFormat('yyyy-MM-dd HH:mm:ss').parseLoose(s);
       } catch (_) {}
-      // Try extracting unix timestamp digits (10..13+ digits)
       final m = RegExp(r'\d{10,}').firstMatch(s);
       if (m != null) {
         final digits = m.group(0)!;
         final numVal = int.parse(digits);
-        if (digits.length > 10) return DateTime.fromMillisecondsSinceEpoch(numVal);
+        if (digits.length > 10)
+          return DateTime.fromMillisecondsSinceEpoch(numVal);
         return DateTime.fromMillisecondsSinceEpoch(numVal * 1000);
       }
     } catch (_) {}
@@ -281,37 +552,49 @@ class NotifikasiHelper {
     return null;
   }
 
-  /// Sort helper: newest notifications first by created_at, with robust fallbacks.
-  static List<Map<String, dynamic>> _sortNotificationsNewestFirst(List<Map<String, dynamic>> list) {
+  static List<Map<String, dynamic>> _sortNotificationsNewestFirst(
+    List<Map<String, dynamic>> list,
+  ) {
     final copy = List<Map<String, dynamic>>.from(list);
     copy.sort((a, b) {
-      final aCandidate = a['created_at'] ?? a['tanggal'] ?? a['updated_at'] ?? (a['data'] is Map ? a['data']['created_at'] : null);
-      final bCandidate = b['created_at'] ?? b['tanggal'] ?? b['updated_at'] ?? (b['data'] is Map ? b['data']['created_at'] : null);
+      final aCandidate =
+          a['created_at'] ??
+          a['tanggal'] ??
+          a['updated_at'] ??
+          (a['data'] is Map ? a['data']['created_at'] : null);
+      final bCandidate =
+          b['created_at'] ??
+          b['tanggal'] ??
+          b['updated_at'] ??
+          (b['data'] is Map ? b['data']['created_at'] : null);
 
       final da = _parseToDate(aCandidate);
       final db = _parseToDate(bCandidate);
 
-      if (da != null && db != null) return db.compareTo(da); // newest-first
-      if (da != null && db == null) return -1; // a has date -> considered newer -> a before b
+      if (da != null && db != null) return db.compareTo(da);
+      if (da != null && db == null) return -1;
       if (da == null && db != null) return 1;
 
-      // Fallback: compare numeric IDs if both available
       final na = _extractNumericId(a);
       final nb = _extractNumericId(b);
-      if (na != null && nb != null) return nb.compareTo(na); // higher id -> newer
+      if (na != null && nb != null) return nb.compareTo(na);
       if (na != null && nb == null) return -1;
       if (na == null && nb != null) return 1;
 
-      // Final fallback: string comparison on created_at/title
-      final sa = (a['created_at'] ?? a['tanggal'] ?? a['id'] ?? a['title'] ?? '').toString();
-      final sb = (b['created_at'] ?? b['tanggal'] ?? b['id'] ?? b['title'] ?? '').toString();
+      final sa =
+          (a['created_at'] ?? a['tanggal'] ?? a['id'] ?? a['title'] ?? '')
+              .toString();
+      final sb =
+          (b['created_at'] ?? b['tanggal'] ?? b['id'] ?? b['title'] ?? '')
+              .toString();
       return sb.compareTo(sa);
     });
     return copy;
   }
 
-  /// Public wrapper to sort notifications newest-first
-  static List<Map<String, dynamic>> sortNotificationsNewestFirst(List<Map<String, dynamic>> list) {
+  static List<Map<String, dynamic>> sortNotificationsNewestFirst(
+    List<Map<String, dynamic>> list,
+  ) {
     return _sortNotificationsNewestFirst(list);
   }
 
@@ -321,11 +604,6 @@ class NotifikasiHelper {
     final ownerId = _ownerIdFromUser(user);
     final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
 
-    // Remove previously stored excluded notifications so they don't remain visible
-    // if the server fetch fails or contains no valid items.
-    // IMPORTANT: Only prune exclusions from the FULL list, do NOT filter by owner
-    // for storage - owner filtering is only for display. This prevents permanently
-    // deleting notifications from SharedPreferences.
     try {
       final existingRaw = prefs.getString('notifications') ?? '[]';
       final List<dynamic> existingList = jsonDecode(existingRaw);
@@ -335,64 +613,81 @@ class NotifikasiHelper {
           .toList();
       if (filteredExisting.length != existingList.length) {
         await prefs.setString('notifications', jsonEncode(filteredExisting));
-        // Notify listeners that the notification store changed
-        try { onNotificationsChanged.value++; } catch (_) {}
-        if (kDebugMode) debugPrint('[NotifikasiHelper] pruned excluded notifications from prefs count=${filteredExisting.length}');
+        try {
+          onNotificationsChanged.value++;
+        } catch (_) {}
+        if (kDebugMode)
+          debugPrint(
+            '[NotifikasiHelper] pruned excluded notifications from prefs count=${filteredExisting.length}',
+          );
       }
     } catch (_) {}
 
     try {
       if (user != null && (user.id ?? '').isNotEmpty) {
         final serverList = await EventDB.getNotifications(user.id ?? '');
-        if (kDebugMode) debugPrint('[NotifikasiHelper] ✅ serverList received count=${serverList.length}');
-        
+        if (kDebugMode)
+          debugPrint(
+            '[NotifikasiHelper] ✅ serverList received count=${serverList.length}',
+          );
+
         if (serverList.isNotEmpty) {
-          // Accept 'transaksi', 'topup', 'tabungan' and 'pinjaman' so pinjaman-related
-          // server notifications are preserved and not dropped by dashboard polling.
           final filtered = serverList
               .where((n) {
                 final t = (n['type'] ?? '').toString();
                 final title = n['title'] ?? '';
-                
-                // Type check: accept known types
-                if (!(t == 'transaksi' || t == 'topup' || t == 'tabungan' || t == 'pinjaman' || t == 'pinjaman_kredit')) {
-                  if (kDebugMode) debugPrint('[NotifikasiHelper] ⚠️ FILTERED unknown type=$t title=$title');
+
+                if (!(t == 'transaksi' ||
+                    t == 'topup' ||
+                    t == 'tabungan' ||
+                    t == 'pinjaman' ||
+                    t == 'pinjaman_kredit')) {
+                  if (kDebugMode)
+                    debugPrint(
+                      '[NotifikasiHelper] ⚠️ FILTERED unknown type=$t title=$title',
+                    );
                   return false;
                 }
-                
-                // Exclusion check: verify notification is not in exclusion list
+
                 if (_isExcludedNotification(n)) {
-                  if (kDebugMode) debugPrint('[NotifikasiHelper] ⚠️ FILTERED excluded notification title=$title');
+                  if (kDebugMode)
+                    debugPrint(
+                      '[NotifikasiHelper] ⚠️ FILTERED excluded notification title=$title',
+                    );
                   return false;
                 }
-                
-                if (kDebugMode) debugPrint('[NotifikasiHelper] ✅ ACCEPTED type=$t title=$title');
+
+                if (kDebugMode)
+                  debugPrint(
+                    '[NotifikasiHelper] ✅ ACCEPTED type=$t title=$title',
+                  );
                 return true;
               })
               .map((n) {
-            return {
-              'type': n['type'] ?? 'transaksi',
-              'title': n['title'] ?? 'Notifikasi',
-              'message': n['message'] ?? '',
-              'created_at': n['created_at'] ?? DateTime.now().toIso8601String(),
-              'read': n['read'] ?? false,
-              'data': n['data'] ?? null,
-              if (ownerId.isNotEmpty) 'owner_id': ownerId,
-            };
-          }).toList();
+                return {
+                  'type': n['type'] ?? 'transaksi',
+                  'title': n['title'] ?? 'Notifikasi',
+                  'message': n['message'] ?? '',
+                  'created_at':
+                      n['created_at'] ?? DateTime.now().toIso8601String(),
+                  'read': n['read'] ?? false,
+                  'data': n['data'] ?? null,
+                  if (ownerId.isNotEmpty) 'owner_id': ownerId,
+                };
+              })
+              .toList();
 
-          if (kDebugMode) debugPrint('[NotifikasiHelper] 🔍 After filtering: accepted=${filtered.length} from total=${serverList.length}');
+          if (kDebugMode)
+            debugPrint(
+              '[NotifikasiHelper] 🔍 After filtering: accepted=${filtered.length} from total=${serverList.length}',
+            );
 
-          // Merge server results with existing local notifications so immediate local
-          // notifications (added after submit) are not overwritten by a server poll.
           try {
             final existingRaw = prefs.getString('notifications') ?? '[]';
             final List<dynamic> existingList = jsonDecode(existingRaw);
-            // Use the FULL existing list for merge so no notifications are lost.
-            // Owner filtering is only for display, not for storage.
             final safeExisting = filterForOwner(
               existingList,
-              '',  // empty ownerId = return all items safely cast
+              '',
             );
 
             final merged = mergeServerWithExisting(
@@ -400,58 +695,53 @@ class NotifikasiHelper {
               safeExisting,
             );
 
-            // Ensure newest notifications appear first (created_at descending)
             final sortedMerged = _sortNotificationsNewestFirst(merged);
 
             await prefs.setString('notifications', jsonEncode(sortedMerged));
             if (ownerId.isNotEmpty) {
               await prefs.setString('notifications_owner_id', ownerId);
             }
-            // Notify listeners that the notification store changed
-            try { onNotificationsChanged.value++; } catch (_) {}
+            try {
+              onNotificationsChanged.value++;
+            } catch (_) {}
             if (kDebugMode) {
-              debugPrint('[NotifikasiHelper] ✅ initializeNotifications MERGED count=${sortedMerged.length}');
-              for (int i = 0; i < (sortedMerged.length > 5 ? 5 : sortedMerged.length); i++) {
-                debugPrint('[NotifikasiHelper]   [$i] type=${sortedMerged[i]['type']} title=${sortedMerged[i]['title']}');
-              }
+              debugPrint(
+                '[NotifikasiHelper] ✅ initializeNotifications MERGED count=${sortedMerged.length}',
+              );
             }
           } catch (e) {
-            // If merge fails, do NOT overwrite prefs with server-only data
-            // to avoid permanently destroying local-only notifications (e.g. Kirim Uang).
-            // Local cache is preserved as-is.
             if (kDebugMode) {
-              debugPrint('[NotifikasiHelper] ⚠️ MERGE FAILED, keeping local cache intact. Error: $e');
+              debugPrint(
+                '[NotifikasiHelper] ⚠️ MERGE FAILED, keeping local cache intact. Error: $e',
+              );
             }
           }
 
-          // If any of the notifications indicate a successful topup, proactively
-          // refresh user's saldo so the UI reflects the change immediately.
           try {
             final hasTopup = filtered.any((n) {
               final t = (n['type'] ?? '').toString();
               final title = (n['title'] ?? '').toString().toLowerCase();
               final msg = (n['message'] ?? '').toString().toLowerCase();
-              return t == 'topup' || title.contains('topup') || msg.contains('topup');
+              return t == 'topup' ||
+                  title.contains('topup') ||
+                  msg.contains('topup');
             });
             if (hasTopup) {
               await EventDB.refreshSaldoForCurrentUser();
             }
           } catch (e) {
-            if (kDebugMode) print('initializeNotifications refreshSaldo error: $e');
+            if (kDebugMode)
+              debugPrint('initializeNotifications refreshSaldo error: $e');
           }
 
           return;
         }
       }
     } catch (e) {
-      if (kDebugMode) print('❌ initializeNotifications error: $e');
+      if (kDebugMode) debugPrint('❌ initializeNotifications error: $e');
     }
-
-    // If we reached here: server fetch failed or no items; leave local notifications as-is.
   }
 
-  /// Add a local notification (used for immediate local feedback such as sender confirmation)
-  /// with robust duplicate prevention
   static Future<void> addLocalNotification({
     required String type,
     required String title,
@@ -464,11 +754,9 @@ class NotifikasiHelper {
     final existing = prefs.getString('notifications') ?? '[]';
     final List<dynamic> notifications = jsonDecode(existing);
 
-    // Exclude unwanted messages
     final candidate = {'type': type, 'title': title, 'message': message};
     if (_isExcludedNotification(candidate)) return;
 
-    // Prevent duplicates: check if same notification already exists recently
     final now = DateTime.now();
     final duplicate = notifications.cast<Map<String, dynamic>>().any((n) {
       final t = (n['type'] ?? '').toString();
@@ -476,15 +764,14 @@ class NotifikasiHelper {
       final m = (n['message'] ?? '').toString();
       final nd = n['data'];
       final nOwner = (n['owner_id'] ?? '').toString();
-      if (ownerId.isNotEmpty && nOwner.isNotEmpty && nOwner != ownerId) return false;
-      
-      // Must match type, title, and message
+      if (ownerId.isNotEmpty && nOwner.isNotEmpty && nOwner != ownerId)
+        return false;
+
       if (t != type || ti != title || m != message) return false;
-      // Check if data matches (or both are empty)
       final hasNewData = data != null && data.isNotEmpty;
       final ndMap = nd is Map ? nd : null;
       final hasExistingData = ndMap != null && ndMap.isNotEmpty;
-      
+
       if (hasNewData && hasExistingData) {
         try {
           final existingDataJson = jsonEncode(nd);
@@ -497,25 +784,24 @@ class NotifikasiHelper {
         return false;
       }
 
-      // If we got here, title/message/data all match
-      // Check if this is a recent duplicate (within 5 minutes)
       try {
         final dt = DateTime.parse(n['created_at'] ?? now.toIso8601String());
         final diff = now.difference(dt);
         if (diff.inMinutes <= 5) return true;
       } catch (_) {}
-      
+
       return false;
     });
 
     if (duplicate) {
       if (kDebugMode) {
-        debugPrint('[NotifikasiHelper] skipped duplicate local notification: $title');
+        debugPrint(
+          '[NotifikasiHelper] skipped duplicate local notification: $title',
+        );
       }
       return;
     }
 
-    // Create new notification with current timestamp
     final newNotification = {
       'type': type,
       'title': title,
@@ -526,38 +812,37 @@ class NotifikasiHelper {
       if (ownerId.isNotEmpty) 'owner_id': ownerId,
     };
 
-    // Insert at top (newest first)
     notifications.insert(0, newNotification);
     await prefs.setString('notifications', jsonEncode(notifications));
     if (ownerId.isNotEmpty) {
       await prefs.setString('notifications_owner_id', ownerId);
     }
-    
-    // Persist last local notification explicitly
+
     await prefs.setString('last_local_notif', jsonEncode(newNotification));
-    
-    // Notify listeners
-    try { 
-      onNotificationsChanged.value++; 
+
+    try {
+      onNotificationsChanged.value++;
     } catch (_) {}
 
     if (kDebugMode) {
       debugPrint('[NotifikasiHelper] addLocalNotification stored: $title');
-      debugPrint('[NotifikasiHelper] last_local_notif: ${jsonEncode(newNotification)}');
     }
   }
 
-  /// Backwards-compatible wrapper so older call sites using `addNotification` keep working.
   static Future<void> addNotification({
     required String type,
     required String title,
     required String message,
     Map<String, dynamic>? data,
   }) async {
-    return addLocalNotification(type: type, title: title, message: message, data: data);
+    return addLocalNotification(
+      type: type,
+      title: title,
+      message: message,
+      data: data,
+    );
   }
 
-  /// Return the count of unread notifications (reads from local storage).
   static Future<int> getUnreadCount() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -566,14 +851,30 @@ class NotifikasiHelper {
       final storedOwnerId = prefs.getString('notifications_owner_id') ?? '';
       final existing = prefs.getString('notifications') ?? '[]';
       final List<dynamic> list = jsonDecode(existing);
-      final ownerFiltered = filterForOwner(
-        list,
-        ownerId,
-        fallbackOwnerId: storedOwnerId,
-      );
-      final unread = ownerFiltered.where((n) => (n['read'] ?? false) == false).length;
+      
+      int unread = 0;
+      for (var n in list) {
+        if (n is Map<String, dynamic>) {
+          final isForThisUser = isForOwner(
+            n,
+            ownerId,
+            fallbackOwnerId: storedOwnerId,
+          );
+          if (isForThisUser && ((n['read'] ?? false) == false)) {
+            unread++;
+          }
+        }
+      }
+      
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] getUnreadCount() = $unread');
+      }
+      
       return unread;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotifikasiHelper] ERROR in getUnreadCount: $e');
+      }
       return 0;
     }
   }

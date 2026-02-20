@@ -2,6 +2,10 @@
 /**
  * API: Add Transfer (Mobile User)
  * Untuk transfer antar akun di mobile app
+ * 
+ * FIXED: Sekarang membuat notifikasi untuk KEDUA pihak:
+ * - Pengirim (User A): "Kirim Uang"
+ * - Penerima (User B): "Terima Uang"
  */
 include 'connection.php';
 date_default_timezone_set("Asia/Jakarta");
@@ -236,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nominal_fmt_ket = 'Rp ' . number_format($nominal, 0, ',', '.');
         $note_ket = trim($keterangan);
         $note_ket_label = $note_ket !== '' ? $note_ket : '-';
-        $keterangan_penerima = "Terima Uang $nominal_fmt_ket dari ({$nama_pengirim}), Catatan: {$note_ket_label}";
+        $keterangan_penerima = "Terima Uang $nominal_fmt_ket dari {$nama_pengirim}, Catatan: {$note_ket_label}";
         $stmt3 = $connect->prepare("INSERT INTO transaksi (id_pengguna, jenis_transaksi, jumlah, saldo_sebelum, saldo_sesudah, keterangan, tanggal, status) VALUES (?, 'transfer_masuk', ?, ?, ?, ?, ?, 'approved')");
         if (!$stmt3) {
             error_log('add_transfer.php: prepare failed transaksi masuk: ' . $connect->error);
@@ -256,7 +260,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($no_transaksi_transfer) {
             set_no_transaksi($connect, $id_transaksi_masuk, $no_transaksi_transfer);
         }
-        // 10. Insert notification for penerima so recipient receives an in-app notification
+        
+        // 10. Insert notification for BOTH penerima DAN pengirim
         // Create table if doesn't exist (non-fatal)
         $create_notif_table = "CREATE TABLE IF NOT EXISTS notifikasi (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -270,13 +275,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
         $connect->query($create_notif_table);
 
-        // Prepare notification content
+        // Prepare notification content - format nominal untuk display
         $nominal_formatted = 'Rp ' . number_format($nominal, 0, ',', '.');
-        $title_notif = 'Terima Uang';
         $note_clean = trim($keterangan);
         $note_label = $note_clean !== '' ? $note_clean : '-';
-        $message_notif = "Terima Uang $nominal_formatted dari ({$nama_pengirim}), Catatan: {$note_label}";
-        $data_json = json_encode(array(
+
+        // Use safe notification helper to filter and dedupe
+        require_once __DIR__ . '/notif_helper.php';
+        
+        // ===== NOTIFIKASI UNTUK PENERIMA (User B) - "Terima Uang" =====
+        $title_notif_penerima = 'Terima Uang';
+        $message_notif_penerima = "Terima Uang $nominal_formatted dari {$nama_pengirim}, Catatan: {$note_label}";
+        $data_json_penerima = json_encode(array(
             'no_transfer' => $no_transfer,
             'nama_pengirim' => $nama_pengirim,
             'nominal' => $nominal,
@@ -285,17 +295,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'no_transaksi' => $no_transaksi_transfer ? $no_transaksi_transfer : '',
             'status' => 'berhasil',
             'amount' => $nominal,
+            'type' => 'transfer_masuk',
         ));
 
-        // Use safe notification helper to filter and dedupe
-        require_once __DIR__ . '/notif_helper.php';
-        $notif_res = safe_create_notification($connect, $db_id_penerima, 'transaksi', $title_notif, $message_notif, $data_json);
-        if ($notif_res === false) {
-            // logged inside helper
-            if ($stmt_notif) {
-                // keep old stmt_notif variable context in case references remain
-                try { @$stmt_notif->close(); } catch (Exception $_) {}
-            }
+        $notif_res_penerima = safe_create_notification($connect, $db_id_penerima, 'transaksi', $title_notif_penerima, $message_notif_penerima, $data_json_penerima);
+        if ($notif_res_penerima === false) {
+            // Notification creation may have been filtered or failed - log it
+            error_log('[add_transfer.php] Notification for penerima creation may have been skipped or failed');
+            @file_put_contents(__DIR__ . '/add_transfer_error.log', date('c') . " WARNING: Notifikasi penerima skipped/failed user={$db_id_penerima} no_transfer={$no_transfer}\n", FILE_APPEND);
+        } else {
+            error_log('[add_transfer.php] Notification for penerima created successfully: nid=' . $notif_res_penerima);
+        }
+        
+        // ===== NOTIFIKASI UNTUK PENGIRIM (User A) - "Kirim Uang" ===== 
+        // 🆕 BARU: Tambahkan notifikasi untuk pengirim juga!
+        $title_notif_pengirim = 'Kirim Uang';
+        $message_notif_pengirim = "Kirim Uang $nominal_formatted ke {$nama_penerima} - {$data_penerima['no_hp']} Berhasil, Catatan: {$note_label}";
+        $data_json_pengirim = json_encode(array(
+            'no_transfer' => $no_transfer,
+            'nama_penerima' => $nama_penerima,
+            'nominal' => $nominal,
+            'keterangan' => $note_clean,
+            'id_transaksi' => (int)$id_transaksi_keluar,
+            'no_transaksi' => $no_transaksi_transfer ? $no_transaksi_transfer : '',
+            'status' => 'berhasil',
+            'amount' => $nominal,
+            'type' => 'transfer_keluar',
+        ));
+
+        $notif_res_pengirim = safe_create_notification($connect, $db_id_pengirim, 'transaksi', $title_notif_pengirim, $message_notif_pengirim, $data_json_pengirim);
+        if ($notif_res_pengirim === false) {
+            // Notification creation may have been filtered or failed - log it
+            error_log('[add_transfer.php] Notification for pengirim creation may have been skipped or failed');
+            @file_put_contents(__DIR__ . '/add_transfer_error.log', date('c') . " WARNING: Notifikasi pengirim skipped/failed user={$db_id_pengirim} no_transfer={$no_transfer}\n", FILE_APPEND);
+        } else {
+            error_log('[add_transfer.php] Notification for pengirim created successfully: nid=' . $notif_res_pengirim);
         }
         
         // Commit transaction
@@ -332,4 +366,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "message" => "Method not allowed. Use POST"
     ));
 }
-

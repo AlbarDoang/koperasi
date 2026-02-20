@@ -57,7 +57,7 @@ class _PindaiPageState extends State<PindaiPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!kReleaseMode && !_apiInfoShown) {
         final base = Api.baseUrl;
-        NotificationService.showInfo('API base: $base');
+        NotificationHelper.showInfo('API base: $base');
         _apiInfoShown = true;
       }
     });
@@ -120,7 +120,7 @@ class _PindaiPageState extends State<PindaiPage> {
       // Get current authenticated user (payer)
       final currentUser = await EventPref.getUser();
       if (currentUser == null || currentUser.id == null) {
-        NotificationService.showError('User tidak ditemukan. Silakan login ulang.');
+        NotificationHelper.showError('User tidak ditemukan. Silakan login ulang.');
         return;
       }
 
@@ -364,7 +364,7 @@ class _PindaiPageState extends State<PindaiPage> {
                   await Api.setOverride(selected == 'auto' ? Api.overrideAuto : selected);
                   if (mounted) {
                     Navigator.of(context).pop();
-                    NotificationService.showSuccess('API base set to: ${Api.baseUrl}');
+                    NotificationHelper.showSuccess('API base set to: ${Api.baseUrl}');
                     setState(() {});
                   }
                 },
@@ -518,7 +518,7 @@ class _PindaiPageState extends State<PindaiPage> {
                       // Note: decoding QR from images via `qr_code_tools` was removed.
                       // To avoid using deprecated plugins we no longer decode selected
                       // images here. Please use the camera scanner to scan QR codes.
-                      NotificationService.showInfo('Pilih gambar tidak didukung. Gunakan kamera untuk memindai QR.');
+                      NotificationHelper.showInfo('Pilih gambar tidak didukung. Gunakan kamera untuk memindai QR.');
                     },
                   ),
                   // Removed central orange button — scanner membaca otomatis
